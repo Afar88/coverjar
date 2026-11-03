@@ -1,7 +1,7 @@
 import { generateText, tool, type CoreMessage, type Tool } from "ai";
 import { z } from "zod";
 import { balances, familySnapshot, getClaims, getLedger, getMember, getRules, updateRules } from "@/lib/db";
-import { geminiConfigured, geminiModel } from "@/lib/gemini";
+import { geminiConfigured, withGemini } from "@/lib/gemini";
 import { paypalAgentTools } from "@/lib/paypal";
 
 export async function POST(req: Request) {
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await generateText({ model: geminiModel(), system, messages: history, tools, maxSteps: 6 });
+    const { result } = await withGemini((model) => generateText({ model, system, messages: history, tools, maxSteps: 6, maxRetries: 1 }));
     const used = result.steps.flatMap((s) => s.toolCalls.map((c) => c.toolName));
     return Response.json({ text: result.text, tools: [...new Set(used)] });
   } catch (e) {

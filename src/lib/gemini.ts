@@ -6,9 +6,27 @@ import type { Claim, Rules } from "./db";
 export const geminiConfigured = Boolean(process.env.GEMINI_API_KEY);
 export const geminiModelId = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 
-export function geminiModel() {
+const fallbackModelIds = [geminiModelId, ...(process.env.GEMINI_FALLBACK_MODELS || "gemini-3-flash-preview,gemini-3.5-flash,gemini-flash-latest").split(",")]
+  .map((m) => m.trim())
+  .filter((m, i, all) => m && all.indexOf(m) === i);
+
+export function geminiModel(id = geminiModelId) {
   const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
-  return google(geminiModelId);
+  return google(id);
+}
+
+/** Runs `fn` against the primary Gemini model, falling back to the next model when one is overloaded or failing. */
+export async function withGemini<T>(fn: (model: ReturnType<typeof geminiModel>, id: string) => Promise<T>): Promise<{ result: T; modelId: string }> {
+  let lastError: unknown;
+  for (const id of fallbackModelIds) {
+    try {
+      return { result: await fn(geminiModel(id), id), modelId: id };
+    } catch (e) {
+      lastError = e;
+      console.warn(`Gemini model ${id} failed: ${(e as Error).message}`);
+    }
+  }
+  throw lastError;
 }
 
 export const assessmentSchema = z.object({
@@ -126,10 +144,8 @@ Recommend a payout no higher than a realistic repair (or replacement if unrepair
   ];
   if (opts.photo) content.push({ type: "image", image: opts.photo.data, mimeType: opts.photo.mime });
 
-  const { object } = await generateObject({
-    model: geminiModel(),
-    schema: assessmentSchema,
-    messages: [{ role: "user", content }],
-  });
-  return applyFamilyCaps(object, claim, rules, jarBalance, geminiModelId);
+  const { result: { object }, modelId } = await withGemini((model) =>
+    generateObject({ model, schema: assessmentSchema, messages: [{ role: "user", content }], maxRetries: 1 }),
+  );
+  return applyFamilyCaps(object, claim, rules, jarBalance, modelId);
 }
