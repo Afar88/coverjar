@@ -95,6 +95,12 @@ export function getDb() {
     CREATE TABLE IF NOT EXISTS paypal_webhook_events (
       event_id TEXT PRIMARY KEY, event_type TEXT NOT NULL, processed_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS streak_bonus_awards (
+      member_id TEXT NOT NULL, streak_end_week TEXT NOT NULL, order_id TEXT NOT NULL UNIQUE,
+      amount_cents INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (member_id, streak_end_week)
+    );
   `);
   const count = db.prepare("SELECT COUNT(*) AS n FROM members").get() as { n: number };
   if (count.n === 0) seed(db);
@@ -271,6 +277,42 @@ export function recordMockSubscriptionPayment(subscriptionId: string) {
   });
 }
 
+export type StreakStatus = { weeks: number; bonusCents: number; eligible: boolean; alreadyMatched: boolean; endWeek: string | null };
+
+/** Four consecutive weekly allowance deposits qualify for a parent-funded jar match. */
+export function getStreakStatus(memberId: string): StreakStatus {
+  const d = getDb();
+  const rows = d.prepare(`
+    SELECT date(created_at, 'weekday 0', '-6 days') AS week_start, SUM(amount_cents) AS contributed
+    FROM ledger
+    WHERE member_id = ? AND bucket = 'jar' AND kind = 'allowance' AND amount_cents > 0
+    GROUP BY week_start ORDER BY week_start DESC LIMIT 52
+  `).all(memberId) as { week_start: string; contributed: number }[];
+  if (!rows.length) return { weeks: 0, bonusCents: 0, eligible: false, alreadyMatched: false, endWeek: null };
+  const latest = new Date(rows[0].week_start + 'T00:00:00Z');
+  const now = new Date();
+  const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+  if ((monday.getTime() - latest.getTime()) / 86400000 > 7) return { weeks: 0, bonusCents: 0, eligible: false, alreadyMatched: false, endWeek: rows[0].week_start };
+  let weeks = 1;
+  for (let i = 1; i < rows.length; i++) {
+    const previous = new Date(rows[i - 1].week_start + 'T00:00:00Z');
+    const next = new Date(rows[i].week_start + 'T00:00:00Z');
+    if ((previous.getTime() - next.getTime()) / 86400000 !== 7) break;
+    weeks++;
+  }
+  const endWeek = rows[0].week_start;
+  const alreadyMatched = Boolean(d.prepare('SELECT 1 FROM streak_bonus_awards WHERE member_id = ? AND streak_end_week = ?').get(memberId, endWeek));
+  const eligible = weeks >= 4 && !alreadyMatched;
+  const contributed = rows.slice(0, 4).reduce((sum, row) => sum + row.contributed, 0);
+  const bonusCents = eligible ? Math.round((contributed * getRules().streak_bonus_percent) / 100) : 0;
+  return { weeks, bonusCents, eligible, alreadyMatched, endWeek };
+}
+
+/** Reserve one unique match for a specific four-week streak before creating its PayPal order. */
+export function reserveStreakBonus(memberId: string, endWeek: string, orderId: string, amountCents: number) {
+  getDb().prepare("INSERT INTO streak_bonus_awards (member_id, streak_end_week, order_id, amount_cents, status) VALUES (?, ?, ?, ?, 'PENDING')").run(memberId, endWeek, orderId, amountCents);
+}
 /** Credit an allowance top-up, splitting it between spending money and the umbrella fund. */
 export function creditAllowance(memberId: string, cents: number, ref: string, label: string) {
   const { jar_percent } = getRules();
