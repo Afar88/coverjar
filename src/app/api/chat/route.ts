@@ -1,11 +1,11 @@
-import { generateText, tool, type CoreMessage, type Tool } from "ai";
+import { generateText, stepCountIs, tool, type ModelMessage, type Tool } from "ai";
 import { z } from "zod";
 import { balances, familySnapshot, getClaims, getLedger, getMember, getRules, updateRules } from "@/lib/db";
 import { geminiConfigured, withGemini } from "@/lib/gemini";
 import { paypalAgentTools } from "@/lib/paypal";
 
 export async function POST(req: Request) {
-  const { role, memberId, messages } = (await req.json()) as { role: "parent" | "teen"; memberId?: string; messages: CoreMessage[] };
+  const { role, memberId, messages } = (await req.json()) as { role: "parent" | "teen"; memberId?: string; messages: ModelMessage[] };
   const history = (messages || []).slice(-12);
   if (!geminiConfigured) {
     return Response.json({
@@ -24,22 +24,22 @@ export async function POST(req: Request) {
     tools = {
       my_balances: tool({
         description: "Get the teen's spending money and protection jar balance in cents",
-        parameters: z.object({}),
+        inputSchema: z.object({}),
         execute: async () => balances(teen.id),
       }),
       my_activity: tool({
         description: "Recent ledger activity for the teen",
-        parameters: z.object({}),
+        inputSchema: z.object({}),
         execute: async () => getLedger(teen.id, 20),
       }),
       my_claims: tool({
         description: "The teen's claims and their status",
-        parameters: z.object({}),
+        inputSchema: z.object({}),
         execute: async () => getClaims(teen.id).map(({ id, title, status, amount_cents, payout_cents }) => ({ id, title, status, amount_cents, payout_cents })),
       }),
       family_rules: tool({
         description: "What the protection jar covers and its limits",
-        parameters: z.object({}),
+        inputSchema: z.object({}),
         execute: async () => getRules(),
       }),
     };
@@ -48,17 +48,17 @@ export async function POST(req: Request) {
     tools = {
       family_snapshot: tool({
         description: "Teens, their balances (cents) and the family rules",
-        parameters: z.object({}),
+        inputSchema: z.object({}),
         execute: async () => familySnapshot(),
       }),
       list_claims: tool({
         description: "All claims with status and AI assessment",
-        parameters: z.object({}),
+        inputSchema: z.object({}),
         execute: async () => getClaims().map((c) => ({ ...c, ai: c.ai ? JSON.parse(c.ai) : null })),
       }),
       update_jar_rules: tool({
         description: "Change the jar percentage, deductible or max payout",
-        parameters: z.object({
+        inputSchema: z.object({
           jar_percent: z.number().int().min(0).max(100).optional(),
           deductible_dollars: z.number().min(0).optional(),
           max_payout_dollars: z.number().min(0).optional(),
@@ -70,12 +70,18 @@ export async function POST(req: Request) {
             ...(a.max_payout_dollars !== undefined ? { max_payout_cents: Math.round(a.max_payout_dollars * 100) } : {}),
           }),
       }),
-      ...(paypalAgentTools() as Record<string, Tool>),
+      ...Object.fromEntries(
+        Object.entries(paypalAgentTools()).map(([name, t]) => {
+          // The PayPal toolkit ships AI SDK v4 tools (`parameters`); adapt them to v5 (`inputSchema`).
+          const legacy = t as unknown as { description?: string; parameters: Tool["inputSchema"]; execute: (args: unknown) => Promise<unknown> };
+          return [name, { description: legacy.description, inputSchema: legacy.parameters, execute: (args: unknown) => legacy.execute(args) } as Tool];
+        }),
+      ),
     };
   }
 
   try {
-    const { result } = await withGemini((model) => generateText({ model, system, messages: history, tools, maxSteps: 6, maxRetries: 1 }));
+    const { result } = await withGemini((model) => generateText({ model, system, messages: history, tools, stopWhen: stepCountIs(6), maxRetries: 1 }));
     const used = result.steps.flatMap((s) => s.toolCalls.map((c) => c.toolName));
     return Response.json({ text: result.text, tools: [...new Set(used)] });
   } catch (e) {

@@ -139,10 +139,10 @@ ${opts.photo ? "A photo of the damage is attached. Inspect it closely and compar
 
 Recommend a payout no higher than a realistic repair (or replacement if unrepairable) cost. Do not apply the deductible or caps yourself; the app enforces those.`;
 
-  const content: ({ type: "text"; text: string } | { type: "image"; image: Buffer; mimeType: string })[] = [
+  const content: ({ type: "text"; text: string } | { type: "image"; image: Buffer; mediaType: string })[] = [
     { type: "text", text: prompt },
   ];
-  if (opts.photo) content.push({ type: "image", image: opts.photo.data, mimeType: opts.photo.mime });
+  if (opts.photo) content.push({ type: "image", image: opts.photo.data, mediaType: opts.photo.mime });
 
   const { result: { object }, modelId } = await withGemini((model) =>
     generateObject({ model, schema: assessmentSchema, messages: [{ role: "user", content }], maxRetries: 1 }),
