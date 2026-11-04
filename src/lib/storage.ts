@@ -1,43 +1,26 @@
-import { del, get, put } from "@vercel/blob";
-import { randomUUID } from "node:crypto";
+import { del, get } from "@vercel/blob";
 
-export type ClaimPhoto = {
-  pathname: string;
-  contentType: "image/jpeg" | "image/png" | "image/webp";
-};
+export const MAX_CLAIM_PHOTO_BYTES=8*1024*1024;
+export type ClaimPhotoMime="image/jpeg"|"image/png"|"image/webp";
 
-function assertBlobConfigured() {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    throw new Error("BLOB_READ_WRITE_TOKEN is required for private claim-photo storage");
-  }
+export function detectClaimPhoto(data:Buffer):{mime:ClaimPhotoMime;extension:".jpg"|".png"|".webp"}|null {
+  if(data.length>=3&&data[0]===0xff&&data[1]===0xd8&&data[2]===0xff)return {mime:"image/jpeg",extension:".jpg"};
+  if(data.length>=8&&data.subarray(0,8).equals(Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a])))return {mime:"image/png",extension:".png"};
+  if(data.length>=12&&data.toString("ascii",0,4)==="RIFF"&&data.toString("ascii",8,12)==="WEBP")return {mime:"image/webp",extension:".webp"};
+  return null;
 }
 
-/** Store claim evidence in a private Vercel Blob store; persist only its opaque pathname. */
-export async function saveClaimPhoto(
-  data: Buffer,
-  contentType: ClaimPhoto["contentType"],
-  extension: ".jpg" | ".png" | ".webp",
-): Promise<ClaimPhoto> {
-  assertBlobConfigured();
-  const pathname = `claims/${randomUUID()}${extension}`;
-  const blob = await put(pathname, data, {
-    access: "private",
-    addRandomSuffix: false,
-    contentType,
-    cacheControlMaxAge: 0,
-  });
-  return { pathname: blob.pathname, contentType };
+export function isMemberClaimPhotoPath(pathname:string,memberId:string) {
+  return new RegExp(`^claims/${memberId.replace(/[.*+?^${}()|[\\]\\\\]/g,"\\\\$&")}/[a-f0-9-]+\\.(jpg|png|webp)$`).test(pathname);
 }
 
-/** Read a private blob by its stored pathname, never by a user-supplied URL. */
-export async function readClaimPhoto(pathname: string) {
-  assertBlobConfigured();
-  if (!/^claims\/[a-f0-9-]+\.(jpg|png|webp)$/.test(pathname)) return null;
-  return get(pathname, { access: "private" });
+/** Read a private Blob by an authenticated member-scoped pathname, never a caller-supplied URL. */
+export async function readClaimPhoto(pathname:string,memberId:string) {
+  if(!isMemberClaimPhotoPath(pathname,memberId))return null;
+  return get(pathname,{access:"private"});
 }
 
-export async function deleteClaimPhoto(pathname: string) {
-  assertBlobConfigured();
-  if (!/^claims\/[a-f0-9-]+\.(jpg|png|webp)$/.test(pathname)) return;
-  await del(pathname, { access: "private" });
+export async function deleteClaimPhoto(pathname:string,memberId:string) {
+  if(!isMemberClaimPhotoPath(pathname,memberId))return;
+  await del(pathname,{access:"private"});
 }
