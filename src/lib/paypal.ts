@@ -1,5 +1,3 @@
-import { PayPalAgentToolkit } from "@paypal/agent-toolkit/ai-sdk";
-
 const clientId = process.env.PAYPAL_CLIENT_ID || "";
 const clientSecret = process.env.PAYPAL_CLIENT_SECRET || "";
 const isLive = process.env.PAYPAL_ENVIRONMENT?.toUpperCase() === "PRODUCTION";
@@ -248,29 +246,66 @@ export async function verifyPaypalWebhook(headers: Headers, event: unknown) {
 
 export async function getSubscriptionStatus(id: string) {
   if (!paypalConfigured || id.startsWith("MOCK-")) return "ACTIVE";
-  const s = await paypalFetch<{ status: string }>(`/v1/billing/subscriptions/${id}`);
+  const s = await paypalFetch<{ status: string }>(`/v1/billing/subscriptions/${encodeURIComponent(id)}`);
   return s.status;
 }
 
-let toolkit: PayPalAgentToolkit | null = null;
+/** Return a limited, read-only view of a PayPal subscription for the family assistant. */
+export async function getPaypalSubscription(id: string) {
+  if (!paypalConfigured || id.startsWith("MOCK-")) return { id, status: "ACTIVE", simulated: true };
+  const s = await paypalFetch<{
+    id: string;
+    status: string;
+    plan_id?: string;
+    start_time?: string;
+    billing_info?: { next_billing_time?: string; failed_payments_count?: number };
+    subscriber?: { email_address?: string };
+  }>(`/v1/billing/subscriptions/${encodeURIComponent(id)}`);
+  return {
+    id: s.id,
+    status: s.status,
+    planId: s.plan_id || null,
+    startedAt: s.start_time || null,
+    nextBillingAt: s.billing_info?.next_billing_time || null,
+    failedPayments: s.billing_info?.failed_payments_count ?? 0,
+    subscriberEmail: s.subscriber?.email_address || null,
+  };
+}
 
-/** PayPal Agent Toolkit tools the parent's assistant may call (read-mostly; no money leaves without approval). */
-export function paypalAgentTools() {
-  if (!paypalConfigured) return {};
-  toolkit ??= new PayPalAgentToolkit({
-    clientId,
-    clientSecret,
-    configuration: {
-      actions: {
-        transactions: { list: true },
-        orders: { get: true },
-        invoices: { create: true, list: true, get: true, send: true },
-        subscriptionPlans: { list: true, show: true },
-        subscriptions: { show: true },
-        products: { list: true },
-      },
-      context: { sandbox: !isLive },
-    },
+/** Read recent PayPal transactions without exposing raw payer or account payloads. */
+export async function listPaypalTransactions(days = 7) {
+  if (!paypalConfigured) return { simulated: true, transactions: [] };
+  const end = new Date();
+  const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+  const query = new URLSearchParams({
+    start_date: start.toISOString(),
+    end_date: end.toISOString(),
+    fields: "all",
+    page_size: "20",
+    page: "1",
   });
-  return toolkit.getTools();
+  const result = await paypalFetch<{
+    transaction_details?: {
+      transaction_info?: {
+        transaction_id?: string;
+        transaction_status?: string;
+        transaction_amount?: { value?: string; currency?: string };
+        transaction_initiation_date?: string;
+        transaction_event_code?: string;
+      };
+      payer_info?: { email_address?: string };
+    }[];
+  }>(`/v1/reporting/transactions?${query.toString()}`);
+  return {
+    simulated: false,
+    transactions: (result.transaction_details || []).map(({ transaction_info: info, payer_info: payer }) => ({
+      id: info?.transaction_id || null,
+      status: info?.transaction_status || "UNKNOWN",
+      amount: info?.transaction_amount?.value || null,
+      currency: info?.transaction_amount?.currency || null,
+      date: info?.transaction_initiation_date || null,
+      type: info?.transaction_event_code || null,
+      payerEmail: payer?.email_address || null,
+    })),
+  };
 }
