@@ -87,7 +87,7 @@ export default function App() {
       <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5 py-10">
         <div className="mb-7 text-center">
           <h1 className="text-3xl font-bold tracking-tight"><span aria-hidden>☂️ </span>Para<span className="text-emerald-600">guas</span></h1>
-          <p className="mt-2 text-sm text-slate-500">Your family's allowance and protection fund.</p>
+          <p className="mt-2 text-sm text-slate-500">Your family&apos;s allowance and protection fund.</p>
         </div>
         <form onSubmit={signIn} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex rounded-xl bg-slate-100 p-1">
