@@ -62,7 +62,7 @@ export function clearSessionCookie() {
 
 export function verifyLogin(role: Session["role"], memberId: string, pin: string) {
   const member = getMember(memberId);
-  if (!member || member.role !== role || !/^\\d{4,12}$/.test(pin)) return false;
+  if (!member || member.role !== role || !/^\d{4,12}$/.test(pin)) return false;
   const configured = role === "parent" ? process.env.PARAGUAS_PARENT_PIN : process.env.PARAGUAS_TEEN_PIN;
   const expected = configured || (process.env.NODE_ENV !== "production" ? (role === "parent" ? "2468" : "1357") : "");
   return Boolean(expected) && safeEqual(pin, expected);
