@@ -36,7 +36,7 @@ export type LedgerEntry = {
   created_at: string;
 };
 
-export type ClaimStatus = "pending_parent" | "paid" | "denied";
+export type ClaimStatus = "pending_parent" | "payout_pending" | "payout_failed" | "paid" | "denied";
 
 export type Claim = {
   id: number;
