@@ -4,7 +4,7 @@ import { api, Button } from "./ui";
 
 type Settled = { split?: { spend: number; jar: number } };
 const splitMsg = (prefix: string, r: Settled) =>
-  r.split ? (r.split.spend === 0 ? `${prefix} ${(r.split.jar / 100).toFixed(2)} added to the jar.` : `${prefix} ${(r.split.spend / 100).toFixed(2)} to spending, ${(r.split.jar / 100).toFixed(2)} to the jar.`) : `${prefix} Already credited.`;
+  r.split ? (r.split.spend === 0 ? `${prefix} ${"$"}{(r.split.jar / 100).toFixed(2)} added to the jar.` : `${prefix} ${"$"}{(r.split.spend / 100).toFixed(2)} to spending, ${"$"}{(r.split.jar / 100).toFixed(2)} to the jar.`) : `${prefix} Already credited.`;
 
 type PayPalSDK = {
   Buttons: (opts: {
