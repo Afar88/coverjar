@@ -257,6 +257,20 @@ export function recordSubscriptionPayment(input: {
   return apply();
 }
 
+/** Simulate the first recurring payment only for the local MOCK subscription flow. */
+export function recordMockSubscriptionPayment(subscriptionId: string) {
+  const sub = getDb().prepare("SELECT amount_cents FROM subscriptions WHERE subscription_id = ?")
+    .get(subscriptionId) as { amount_cents: number } | undefined;
+  if (!sub) throw new Error("Mock subscription is not registered");
+  return recordSubscriptionPayment({
+    eventId: `mock-event-${subscriptionId}`,
+    eventType: "PAYMENT.SALE.COMPLETED",
+    subscriptionId,
+    saleId: `mock-sale-${subscriptionId}`,
+    amountCents: sub.amount_cents,
+  });
+}
+
 /** Credit an allowance top-up, splitting it between spending money and the umbrella fund. */
 export function creditAllowance(memberId: string, cents: number, ref: string, label: string) {
   const { jar_percent } = getRules();
