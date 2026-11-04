@@ -12,6 +12,7 @@ type PayPalSDK = {
     createOrder: () => Promise<string>;
     onApprove: (data: { orderID: string }) => Promise<void>;
     onError: (err: unknown) => void;
+    onCancel?: () => Promise<void>;
   }) => { render: (el: HTMLElement) => Promise<void>; close: () => void };
 };
 
@@ -61,16 +62,24 @@ export function TopUp({
     if (!clientId || !ref.current) return;
     let buttons: { close: () => void } | null = null;
     const el = ref.current;
+    let activeOrderId: string | null = null;
     loadSdk(clientId)
       .then(() => {
         if (!window.paypal) return;
         const b = window.paypal.Buttons({
           style: { layout: "horizontal", height: 40, tagline: false, label: "pay" },
-          createOrder: async () => (await api<{ id: string }>("/api/topup/create", { memberId, amount: amountRef.current, method: purpose === "streak_bonus" ? "streak_bonus" : undefined })).id,
+          createOrder: async () => {
+            const order = await api<{ id: string }>("/api/topup/create", { memberId, amount: amountRef.current, method: purpose === "streak_bonus" ? "streak_bonus" : undefined });
+            activeOrderId = order.id;
+            return order.id;
+          },
           onApprove: async ({ orderID }) => {
             onDone(splitMsg("Paid with PayPal.", await api<Settled>("/api/topup/capture", { orderId: orderID })));
           },
           onError: (err) => onError(String((err as Error)?.message || err)),
+          onCancel: async () => {
+            if (purpose === "streak_bonus" && activeOrderId) await api("/api/topup/cancel", { orderId: activeOrderId });
+          },
         });
         buttons = b;
         b.render(el);
