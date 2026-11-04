@@ -240,7 +240,7 @@ function TeenFundingCard({ teen, state, onDone, onError }: { teen: Member; state
               </div>
             </>
           ) : teen.streak.alreadyMatched ? (
-            <p className="mt-1 text-xs text-emerald-800">This four-week streak has already been matched.</p>
+            <p className="mt-1 text-xs text-emerald-800">A match payment is pending or this streak has already been matched.</p>
           ) : (
             <p className="mt-1 text-xs text-slate-600">Four consecutive weeks of allowance savings unlock a parent-funded match.</p>
           )}
