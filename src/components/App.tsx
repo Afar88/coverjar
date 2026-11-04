@@ -20,7 +20,12 @@ const RETURN_MESSAGES: Record<string, string> = {
 export default function App() {
   const params = useSearchParams();
   const [state, setState] = useState<AppState | null>(null);
-  const [view, setView] = useState<string>("parent");
+  const [session, setSession] = useState<{ role: "parent" | "teen"; memberId: string } | null>(null);
+  const [loginOptions, setLoginOptions] = useState<{ id: string; name: string; emoji: string }[]>([]);
+  const [role, setRole] = useState<"parent" | "teen">("parent");
+  const [memberId, setMemberId] = useState("");
+  const [pin, setPin] = useState("");
+  const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ msg: string; error?: boolean } | null>(() => {
     for (const [k, msg] of Object.entries(RETURN_MESSAGES)) {
       const [key, val] = k.split("=");
@@ -39,55 +44,94 @@ export default function App() {
 
   useEffect(() => {
     let alive = true;
-    api<AppState>("/api/state").then((s) => alive && setState(s));
+    Promise.all([
+      api<{ authenticated: boolean; session: { role: "parent" | "teen"; memberId: string } | null }>("/api/auth/session"),
+      api<{ teens: { id: string; name: string; emoji: string }[] }>("/api/auth/options"),
+    ]).then(async ([auth, options]) => {
+      if (!alive) return;
+      setLoginOptions(options.teens);
+      if (auth.authenticated && auth.session) {
+        setSession(auth.session);
+        const next = await api<AppState>("/api/state");
+        if (alive) setState(next);
+      }
+    }).catch(() => { if (alive) notify("Couldn't load Paraguas. Refresh and try again.", true); });
     if (window.location.search) window.history.replaceState(null, "", "/");
-    return () => {
-      alive = false;
-    };
-  }, []);
+    return () => { alive = false; };
+  }, [notify]);
 
-  if (!state) return <div className="p-10 text-slate-500">Loading Paraguas…</div>;
-  const teens = state.members.filter((m) => m.role === "teen");
-  const current = teens.find((t) => t.id === view);
+  async function signIn(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const result = await api<{ role: "parent" | "teen"; memberId: string }>("/api/auth/login", {
+        role, memberId: role === "parent" ? "parent" : memberId, pin,
+      });
+      setSession(result);
+      setPin("");
+      setState(await api<AppState>("/api/state"));
+      notify("You're signed in.");
+    } catch (error) {
+      notify((error as Error).message, true);
+    } finally { setBusy(false); }
+  }
 
+  async function signOut() {
+    await api("/api/auth/logout", {});
+    setSession(null);
+    setState(null);
+  }
+
+  if (!session || !state) {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5 py-10">
+        <div className="mb-7 text-center">
+          <h1 className="text-3xl font-bold tracking-tight"><span aria-hidden>☂️ </span>Para<span className="text-emerald-600">guas</span></h1>
+          <p className="mt-2 text-sm text-slate-500">Your family's allowance and protection fund.</p>
+        </div>
+        <form onSubmit={signIn} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex rounded-xl bg-slate-100 p-1">
+            <button type="button" onClick={() => setRole("parent")} className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${role === "parent" ? "bg-white shadow-sm" : "text-slate-500"}`}>Parent</button>
+            <button type="button" onClick={() => setRole("teen")} className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${role === "teen" ? "bg-white shadow-sm" : "text-slate-500"}`}>Teen</button>
+          </div>
+          {role === "teen" && (
+            <label className="block text-sm font-medium">Your profile
+              <select className={`${inputCls} mt-1`} value={memberId} onChange={(e) => setMemberId(e.target.value)} required>
+                <option value="">Choose your profile</option>
+                {loginOptions.map((m) => <option key={m.id} value={m.id}>{m.emoji} {m.name}</option>)}
+              </select>
+            </label>
+          )}
+          <label className="block text-sm font-medium">Passcode
+            <input className={`${inputCls} mt-1`} type="password" inputMode="numeric" autoComplete="current-password" value={pin} onChange={(e) => setPin(e.target.value)} minLength={4} maxLength={12} required placeholder="Enter your passcode" />
+          </label>
+          <Button type="submit" disabled={busy || (role === "teen" && !memberId)}>{busy ? "Signing in…" : "Sign in"}</Button>
+          {toast && <p className={`text-sm ${toast.error ? "text-rose-700" : "text-emerald-700"}`}>{toast.msg}</p>}
+          <p className="text-xs text-slate-400">Demo passcodes: parent 2468 · teen 1357. Change these before any public deployment.</p>
+        </form>
+      </div>
+    );
+  }
+
+  const current = session.role === "teen" ? state.members.find((m) => m.id === session.memberId) : null;
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            <span aria-hidden>☂️ </span>Para<span className="text-emerald-600">guas</span>
-          </h1>
-          <p className="text-sm text-slate-500">
-            <em>Paraguas</em> is Spanish for <strong>&ldquo;umbrella&rdquo;</strong>. Part of every allowance becomes an umbrella that covers your teen when it rains: a cracked screen, a broken bike. Gemini reviews claims, parents approve, PayPal pays.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight"><span aria-hidden>☂️ </span>Para<span className="text-emerald-600">guas</span></h1>
+          <p className="text-sm text-slate-500"><em>Paraguas</em> is Spanish for <strong>&ldquo;umbrella&rdquo;</strong>. Gemini reviews claims, parents approve, PayPal pays.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={state.config.paypal === "sandbox" ? "blue" : "amber"}>PayPal: {state.config.paypal}</Badge>
           <Badge tone={state.config.ai === "offline-demo" ? "amber" : "green"}>AI: {state.config.ai}</Badge>
-          <div className="ml-2 flex rounded-xl border border-slate-200 bg-white p-1">
-            {[state.members.find((m) => m.role === "parent")!, ...teens].map((m) => (
-              <button
-                key={m.id}
-                onClick={() => setView(m.id)}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium ${view === m.id ? "bg-emerald-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}
-              >
-                {m.emoji} {m.name}
-                {m.role === "parent" ? " (parent)" : ""}
-              </button>
-            ))}
-          </div>
+          <Badge>{session.role === "parent" ? "Parent account" : current?.name}</Badge>
+          <Button variant="ghost" onClick={signOut}>Sign out</Button>
         </div>
       </header>
-
-      {toast && (
-        <div className={`mb-4 rounded-xl px-4 py-3 text-sm ${toast.error ? "bg-rose-50 text-rose-800" : "bg-emerald-50 text-emerald-800"}`}>{toast.msg}</div>
-      )}
-
-      {current ? (
-        <TeenView key={current.id} teen={current} state={state} onDone={onDone} onError={onError} />
-      ) : (
-        <ParentView state={state} onDone={onDone} onError={onError} />
-      )}
+      {toast && <div className={`mb-4 rounded-xl px-4 py-3 text-sm ${toast.error ? "bg-rose-50 text-rose-800" : "bg-emerald-50 text-emerald-800"}`}>{toast.msg}</div>}
+      {session.role === "parent" ? <ParentView state={state} onDone={onDone} onError={onError} /> :
+        current ? <TeenView key={current.id} teen={current} state={state} onDone={onDone} onError={onError} /> :
+        <p className="text-sm text-rose-700">Teen profile unavailable. Sign out and sign in again.</p>}
     </div>
   );
 }
