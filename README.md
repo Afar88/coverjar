@@ -12,18 +12,19 @@ Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 2. **Split:** Paraguas atomically divides each confirmed allowance payment between teen spending money and the umbrella fund.
 3. **Save:** Four consecutive weeks of positive jar contributions can unlock a configurable, parent-funded saving match.
 4. **Claim:** A teen describes the accident and uploads a photo.
-5. **Review:** Gemini checks the claim and photo against the family's rules, estimates repair cost, flags concerns, and writes a parent summary and teen-friendly note.
+5. **Review:** Gemini checks the claim and photo against family rules, estimates repair cost, flags concerns, and writes a parent summary and teen-friendly note.
 6. **Protect:** Server-side rules enforce the deductible, maximum payout, and available jar balance. Gemini cannot approve or pay a claim.
 7. **Decide and pay:** The parent approves or declines. If approved, PayPal Payouts sends the payment; pending payouts remain reserved until PayPal confirms the outcome.
 8. **Coach:** Gemini powers a teen money coach and a parent assistant. The parent assistant can read recent PayPal transactions and subscription status; it does not create or send invoices.
 
 ## Technology
 
-- **Next.js 16 / React 19** — application and server-side API routes
+- **Next.js 16 / React 19** — server-rendered application and API routes
+- **Neon PostgreSQL** via `@neondatabase/serverless` — durable family data, ledger, claims, payment state and idempotency
+- **Vercel Blob (Private)** — claim evidence stored privately and streamed only through authenticated routes
 - **Google Gemini** via `@ai-sdk/google` and the AI SDK — multimodal claim review and role-aware chat
 - **PayPal REST APIs** — Orders, Subscriptions, Payouts, transaction reporting, and webhook signature verification
-- **SQLite** via `better-sqlite3` — family data, ledger, claims, idempotency records, and payment state
-- **Biome** — linting
+- **Biome** — linting; **pg-mem** — PostgreSQL-compatible integration test adapter
 
 ## Run locally
 
@@ -39,25 +40,26 @@ npm run dev
 
 Open http://localhost:3000.
 
-With no provider keys, the app runs in clearly labelled demo mode: parent passcode `2468`, teen passcode `1357`, simulated PayPal payments, and rule-based claim assessments. These are local demo credentials only. Production rejects the development defaults.
+For local development, configure a Neon database and a private Vercel Blob store. Without provider credentials, the UI can still load, but database-backed features require `DATABASE_URL` and claim-photo uploads require `BLOB_READ_WRITE_TOKEN`. Do not use the old demo passcodes in production.
 
 ## Environment variables
 
 | Variable | Purpose |
 |---|---|
-| `PARAGUAS_SESSION_SECRET` | Required in production; use a random secret with at least 32 characters |
-| `PARAGUAS_PARENT_PIN` | Parent login passcode; set a private 4–12 digit value |
-| `PARAGUAS_TEEN_PIN` | Teen login passcode; set a different private 4–12 digit value |
-| `DATA_DIR` | Optional absolute path for the SQLite database and private claim-photo uploads; must be on persistent storage in production |
+| `DATABASE_URL` | Neon PostgreSQL pooled connection string |
+| `BLOB_READ_WRITE_TOKEN` | Token for the Vercel Blob **Private** store |
+| `PARAGUAS_SESSION_SECRET` | Required in production; random secret with at least 32 characters |
+| `PARAGUAS_PARENT_PIN` | Parent login passcode; private 4–12 digit value |
+| `PARAGUAS_TEEN_PIN` | Teen login passcode; a different private 4–12 digit value |
 | `GEMINI_API_KEY` | Google AI Studio API key |
 | `GEMINI_MODEL` | Optional Gemini model override |
-| `GEMINI_FALLBACK_MODELS` | Optional comma-separated model fallback list |
+| `GEMINI_FALLBACK_MODELS` | Optional comma-separated Gemini fallback list |
 | `PAYPAL_CLIENT_ID` | PayPal REST app client ID |
 | `PAYPAL_CLIENT_SECRET` | PayPal REST app secret |
 | `PAYPAL_ENVIRONMENT` | Set to `SANDBOX` for testing or `PRODUCTION` for live PayPal |
 | `PAYPAL_WEBHOOK_ID` | Webhook ID from the matching PayPal REST app |
-| `DEMO_PARENT_EMAIL` | Optional seeded parent payout recipient for demo/testing |
-| `DEMO_REPAIR_SHOP_EMAIL` | Optional seeded repair-shop payout recipient for demo/testing |
+| `DEMO_PARENT_EMAIL` | Optional seeded parent payout recipient |
+| `DEMO_REPAIR_SHOP_EMAIL` | Optional seeded repair-shop payout recipient |
 | `PAYPAL_CRYPTO_ENABLED` | Keep disabled unless PayPal has enabled Pay with Crypto for the merchant account |
 
 Never commit `.env.local`, provider secrets, real passcodes, or production data.
@@ -66,43 +68,41 @@ Never commit `.env.local`, provider secrets, real passcodes, or production data.
 
 Recurring allowance payments are credited only after a verified PayPal `PAYMENT.SALE.COMPLETED` webhook. The subscription approval redirect alone does not credit an allowance.
 
-1. Deploy the app to a public HTTPS host.
+1. Deploy the app to a public HTTPS Vercel URL.
 2. In the PayPal REST app, register `https://YOUR_HOST/api/paypal/webhook`.
 3. Subscribe to `PAYMENT.SALE.COMPLETED`, `BILLING.SUBSCRIPTION.ACTIVATED`, `BILLING.SUBSCRIPTION.CANCELLED`, `BILLING.SUBSCRIPTION.SUSPENDED`, and `BILLING.SUBSCRIPTION.EXPIRED`.
 4. Save the webhook ID as `PAYPAL_WEBHOOK_ID` in the same environment as the matching PayPal credentials.
-5. Send a sandbox event and confirm the webhook returns successfully and the ledger records the payment once.
+5. Send a sandbox event and confirm the handler verifies it and credits the ledger once.
 
-The handler verifies the signature with PayPal and records event/sale IDs to prevent duplicate credits when PayPal retries delivery.
+## Deployment
 
-## Production hosting requirements
+Paraguas is a server-rendered Next.js application and must not be deployed as a static site. The target hosting architecture is:
 
-Paraguas is a **server-rendered Next.js application**, not a static website. GitHub Pages alone cannot run its API routes, PayPal webhooks, Gemini requests, or SQLite database.
+- **Vercel** for Next.js and API routes
+- **Neon PostgreSQL** for durable relational storage
+- **Vercel Blob Private** for claim evidence
 
-Deploy it to a Node.js host that supports:
-- Next.js production builds and a long-running Node server
-- A persistent writable disk/volume mounted at an absolute path (set `DATA_DIR` to that mount)
-- HTTPS and a stable public URL for PayPal webhooks
-- Environment variables/secrets
-- A single application instance for this SQLite-backed version, or a deliberate migration to a shared database before horizontal scaling
+See [DEPLOYMENT.md](DEPLOYMENT.md) for setup, environment variables, webhook configuration, preview verification, and production cutover.
 
-The SQLite database and private claim uploads are both stored under `DATA_DIR`. Ephemeral server storage will lose family data and claim photos on restart/redeploy. Do not use a static-only host or an ephemeral filesystem for production.
+## Existing SQLite data
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for the deployment and go-live checklist.
+The Neon schema is initialized automatically on first database access. The migration does **not** automatically import an external SQLite database file. The tracked repository `data/` directory contains only a placeholder. If another deployed environment contains real family data, balances, claims, subscriptions, payment references, or payout state, do not cut over until those records have been exported and imported through a reviewed migration.
 
 ## Security and payment integrity
 
 - Signed, HTTP-only parent/teen sessions; server routes enforce role permissions.
 - Login and claim-submission rate limits.
-- Claim uploads validate actual image signatures, allow JPEG/PNG/WebP up to 8 MB, and are served privately.
-- Payment settlement checks amounts/currencies and uses idempotency to prevent duplicate credits or payouts.
+- Claim uploads validate JPEG/PNG/WebP signatures and are stored in a private Blob store.
+- Photo reads check session role and claim ownership before fetching the private Blob.
+- Payment settlement checks exact USD amounts and uses idempotency to prevent duplicate credits or payouts.
 - PayPal webhook signatures are verified before recurring credits are applied.
-- Parent approval is required before claim payouts; ambiguous payout outcomes remain pending and can be reconciled.
+- Parent approval is required before claim payouts; ambiguous payout outcomes remain reserved and can be reconciled.
 - Family payout caps are enforced in server code, independently of Gemini output.
-- CI runs tests, Biome lint, TypeScript checks, production build, and a full dependency audit.
+- CI runs PostgreSQL adapter tests, lint, TypeScript checks, production build, and a full dependency audit.
 
 ## Demo walkthrough
 
-1. Sign in as parent using the local demo passcode.
+1. Sign in as parent.
 2. Top up a teen's allowance and observe the spending/jar split.
 3. Sign in as the teen and submit a damage claim with a photo.
 4. Return to the parent view, inspect the assessment, then approve or decline.
