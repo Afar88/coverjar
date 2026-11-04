@@ -49,6 +49,7 @@ export async function POST(req: Request) {
     const claim = getClaim(Number(res.lastInsertRowid))!;
     return Response.json({ ...claim, ai });
   } catch (e) {
+    if (photoInfo?.file) fs.rmSync(path.join(/*turbopackIgnore: true*/ UPLOAD_DIR, photoInfo.file), { force: true });
     return Response.json({ error: `AI review failed: ${(e as Error).message}` }, { status: 502 });
   }
 }
