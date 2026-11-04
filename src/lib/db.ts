@@ -25,8 +25,9 @@ let pool: Pool | null = null;
 let schemaPromise: Promise<void> | null = null;
 
 function getPool() {
+  if (pool) return pool;
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL must be configured with a Neon PostgreSQL connection string");
-  if (!pool) pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5, idleTimeoutMillis: 10_000, connectionTimeoutMillis: 8_000 });
+  pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5, idleTimeoutMillis: 10_000, connectionTimeoutMillis: 8_000 });
   return pool;
 }
 
@@ -80,7 +81,7 @@ async function ensureSchema() {
         ALTER TABLE rules ADD COLUMN IF NOT EXISTS streak_bonus_percent INTEGER NOT NULL DEFAULT 10;
       `);
       const count = await client.query("SELECT COUNT(*)::int AS n FROM members");
-      if (Number(count.rows[0]?.n ?? 0) === 0) await seed(client);
+      if (Number(count.rows[0]?.n ?? 0) === 0 && process.env.PARAGUAS_SKIP_SEED !== "true") await seed(client);
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);
@@ -258,4 +259,10 @@ export async function cancelStreakBonus(orderId:string) {
     if(changed) await execute("UPDATE streak_bonus_awards SET status='CANCELLED' WHERE order_id=$1 AND status='PENDING'",[orderId],client);
     return changed>0;
   });
+}
+
+/** Test-only injection point; production always uses DATABASE_URL and Neon Pool. */
+export function setPoolForTests(value: unknown) {
+  pool = value as Pool;
+  schemaPromise = null;
 }
