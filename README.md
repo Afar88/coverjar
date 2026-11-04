@@ -104,3 +104,9 @@ src/components/*       Parent and teen UI
 ## License
 
 [MIT](LICENSE)
+
+### Claim photo safety and payout tracking
+
+Claim evidence accepts JPEG, PNG and WebP images up to 8 MB. The server checks the file signature instead of trusting the filename or browser MIME label, stores it under a generated filename, and serves it only to the parent or the teen who filed that claim.
+
+If a PayPal claim payout is still processing or the initial response times out, Paraguas keeps the amount reserved in the umbrella fund. The parent can use **Check PayPal payout status** in the claim history to query the existing payout batch. If the batch reference was lost during a timeout, Paraguas replays the same idempotent PayPal request to recover the original batch rather than creating a second transfer. Funds are released only after PayPal reports a terminal failed outcome; a payout is marked paid only after both the batch and payout item report success.
