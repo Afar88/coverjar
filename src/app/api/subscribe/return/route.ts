@@ -1,4 +1,4 @@
-import { updateSubscriptionStatus } from "@/lib/db";
+import { recordMockSubscriptionPayment, updateSubscriptionStatus } from "@/lib/db";
 import { getSubscriptionStatus } from "@/lib/paypal";
 
 export async function GET(req: Request) {
