@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { balances, getClaim, getClaims, getDb, getMember, getRules, UPLOAD_DIR } from "@/lib/db";
+import { balances, consumeRateLimit, getClaim, getClaims, getDb, getMember, getRules, UPLOAD_DIR } from "@/lib/db";
 import { toCents } from "@/lib/money";
 import { assessClaim } from "@/lib/gemini";
 import { requireRole } from "@/lib/auth";
@@ -17,6 +17,13 @@ function detectPhoto(data: Buffer): { mime: string; extension: string } | null {
 export async function POST(req: Request) {
   const session = requireRole(req, "teen");
   if (!session) return Response.json({ error: "Teen access required" }, { status: 403 });
+  const rate = consumeRateLimit(`claim-submit:${session.memberId}`, 5, 60 * 60 * 1000);
+  if (!rate.allowed) {
+    return Response.json(
+      { error: "Too many claim submissions. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds), "Cache-Control": "no-store" } },
+    );
+  }
   const contentLength = Number(req.headers.get("content-length") || 0);
   if (contentLength > MAX_PHOTO_BYTES + 128 * 1024) return Response.json({ error: "Claim upload is too large. Keep the photo under 8 MB." }, { status: 413 });
   let form: FormData;
