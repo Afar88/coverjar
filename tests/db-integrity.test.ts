@@ -24,6 +24,7 @@ test("database migrations, payment integrity and login rate limits", async (t) =
 
   const dbModule = await import("../src/lib/db");
   const db = dbModule.getDb();
+  const { settlePayment } = await import("../src/app/api/topup/settle");
   try {
     await t.test("upgrades an existing rules table and seeds the new setting", () => {
       const columns = db.pragma("table_info(rules)") as { name: string }[];
@@ -69,6 +70,32 @@ test("database migrations, payment integrity and login rate limits", async (t) =
         amountCents: 1501,
       }), /amount does not match/);
       assert.deepEqual(dbModule.balances("zara"), before);
+    });
+
+    await t.test("settles a live top-up only for the exact captured USD amount and credits once", () => {
+      db.prepare("INSERT INTO payments (order_id, member_id, amount_cents, method, status) VALUES (?, ?, ?, ?, ?)").run(
+        "LIVE-ORDER-SETTLE-001", "tobi", 1200, "paypal", "CREATED",
+      );
+      const before = dbModule.balances("tobi");
+      const first = settlePayment("LIVE-ORDER-SETTLE-001", "LIVE-CAPTURE-001", { value: "12.00", currencyCode: "USD" });
+      assert.equal(first.alreadySettled, false);
+      const afterFirst = dbModule.balances("tobi");
+      assert.equal(afterFirst.spend + afterFirst.jar - before.spend - before.jar, 1200);
+
+      const duplicate = settlePayment("LIVE-ORDER-SETTLE-001", "LIVE-CAPTURE-RETRY", { value: "99.99", currencyCode: "USD" });
+      assert.equal(duplicate.alreadySettled, true);
+      assert.deepEqual(dbModule.balances("tobi"), afterFirst);
+    });
+
+    await t.test("rejects mismatched live top-up amounts and currencies without ledger writes", () => {
+      db.prepare("INSERT INTO payments (order_id, member_id, amount_cents, method, status) VALUES (?, ?, ?, ?, ?)").run(
+        "LIVE-ORDER-SETTLE-002", "zara", 1500, "paypal", "CREATED",
+      );
+      const before = dbModule.balances("zara");
+      assert.throws(() => settlePayment("LIVE-ORDER-SETTLE-002", "LIVE-CAPTURE-002", { value: "15.01", currencyCode: "USD" }), /amount or currency/);
+      assert.throws(() => settlePayment("LIVE-ORDER-SETTLE-002", "LIVE-CAPTURE-002", { value: "15.00", currencyCode: "EUR" }), /amount or currency/);
+      assert.deepEqual(dbModule.balances("zara"), before);
+      assert.equal((db.prepare("SELECT status FROM payments WHERE order_id = ?").get("LIVE-ORDER-SETTLE-002") as {status:string}).status, "CREATED");
     });
 
     await t.test("enforces an atomic account rate limit and returns a retry delay", () => {
