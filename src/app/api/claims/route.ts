@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import path from "node:path";
 import { balances, getClaim, getClaims, getDb, getMember, getRules, UPLOAD_DIR } from "@/lib/db";
 import { toCents } from "@/lib/money";
 import { assessClaim } from "@/lib/gemini";
@@ -7,10 +6,18 @@ import { requireRole } from "@/lib/auth";
 
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 
+function detectPhoto(data: Buffer): { mime: string; extension: string } | null {
+  if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) return { mime: "image/jpeg", extension: ".jpg" };
+  if (data.length >= 8 && data.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return { mime: "image/png", extension: ".png" };
+  if (data.length >= 12 && data.toString("ascii", 0, 4) === "RIFF" && data.toString("ascii", 8, 12) === "WEBP") return { mime: "image/webp", extension: ".webp" };
+  return null;
+}
+
 export async function POST(req: Request) {
   const session = requireRole(req, "teen");
   if (!session) return Response.json({ error: "Teen access required" }, { status: 403 });
-  const form = await req.formData();
+  let form: FormData;
+  try { form = await req.formData(); } catch { return Response.json({ error: "Invalid claim form or photo upload" }, { status: 400 }); }
   const teen = getMember(session.memberId);
   const title = String(form.get("title") || "").trim().slice(0, 120);
   const description = String(form.get("description") || "").trim().slice(0, 2000);
@@ -23,12 +30,14 @@ export async function POST(req: Request) {
 
   let photoInfo: { data: Buffer; mime: string; file: string } | undefined;
   if (photo instanceof File && photo.size > 0) {
-    if (!photo.type.startsWith("image/")) return Response.json({ error: "Photo must be an image" }, { status: 400 });
     if (photo.size > MAX_PHOTO_BYTES) return Response.json({ error: "Photo must be under 8 MB" }, { status: 400 });
-    const data = Buffer.from(await photo.arrayBuffer());
-    const file = `${crypto.randomUUID()}${path.extname(photo.name) || ".jpg"}`;
-    fs.writeFileSync(path.join(/*turbopackIgnore: true*/ UPLOAD_DIR, file), data);
-    photoInfo = { data, mime: photo.type, file };
+    let data: Buffer;
+    try { data = Buffer.from(await photo.arrayBuffer()); } catch { return Response.json({ error: "The photo could not be read. Please try another image." }, { status: 400 }); }
+    const detected = detectPhoto(data);
+    if (!detected || photo.type !== detected.mime) return Response.json({ error: "Use a valid JPEG, PNG or WebP photo. SVG and other file types are not accepted." }, { status: 400 });
+    const file = crypto.randomUUID() + detected.extension;
+    try { fs.writeFileSync(path.join(/*turbopackIgnore: true*/ UPLOAD_DIR, file), data, { flag: "wx" }); } catch { return Response.json({ error: "Could not save the photo. Please try again." }, { status: 500 }); }
+    photoInfo = { data, mime: detected.mime, file };
   }
 
   try {
