@@ -1,9 +1,16 @@
 import { getDb, updateRules } from "@/lib/db";
 import { toCents } from "@/lib/money";
+import { requireRole } from "@/lib/auth";
 
 export async function POST(req: Request) {
+  if (!requireRole(req, "parent")) return Response.json({ error: "Parent access required" }, { status: 403 });
   const b = await req.json();
   const patch: Record<string, unknown> = {};
+  if (b.streak_bonus_percent !== undefined) {
+    const p = Math.round(Number(b.streak_bonus_percent));
+    if (!(p >= 0 && p <= 100)) return Response.json({ error: "Streak match % must be 0-100" }, { status: 400 });
+    patch.streak_bonus_percent = p;
+  }
   if (b.jar_percent !== undefined) {
     const p = Math.round(Number(b.jar_percent));
     if (!(p >= 0 && p <= 100)) return Response.json({ error: "Jar % must be 0-100" }, { status: 400 });

@@ -4,7 +4,7 @@ import { api, Button } from "./ui";
 
 type Settled = { split?: { spend: number; jar: number } };
 const splitMsg = (prefix: string, r: Settled) =>
-  r.split ? `${prefix} $${(r.split.spend / 100).toFixed(2)} to spending, $${(r.split.jar / 100).toFixed(2)} to the jar.` : `${prefix} Already credited.`;
+  r.split ? (r.split.spend === 0 ? `${prefix} $${(r.split.jar / 100).toFixed(2)} added to the jar.` : `${prefix} $${(r.split.spend / 100).toFixed(2)} to spending, $${(r.split.jar / 100).toFixed(2)} to the jar.`) : `${prefix} Already credited.`;
 
 type PayPalSDK = {
   Buttons: (opts: {
@@ -12,6 +12,7 @@ type PayPalSDK = {
     createOrder: () => Promise<string>;
     onApprove: (data: { orderID: string }) => Promise<void>;
     onError: (err: unknown) => void;
+    onCancel?: () => Promise<void>;
   }) => { render: (el: HTMLElement) => Promise<void>; close: () => void };
 };
 
@@ -40,6 +41,7 @@ export function TopUp({
   cryptoEnabled,
   onDone,
   onError,
+  purpose = "allowance",
 }: {
   memberId: string;
   amount: string;
@@ -47,6 +49,7 @@ export function TopUp({
   cryptoEnabled: boolean;
   onDone: (msg: string) => void;
   onError: (msg: string) => void;
+  purpose?: "allowance" | "streak_bonus";
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const amountRef = useRef(amount);
@@ -59,28 +62,36 @@ export function TopUp({
     if (!clientId || !ref.current) return;
     let buttons: { close: () => void } | null = null;
     const el = ref.current;
+    let activeOrderId: string | null = null;
     loadSdk(clientId)
       .then(() => {
         if (!window.paypal) return;
         const b = window.paypal.Buttons({
           style: { layout: "horizontal", height: 40, tagline: false, label: "pay" },
-          createOrder: async () => (await api<{ id: string }>("/api/topup/create", { memberId, amount: amountRef.current })).id,
+          createOrder: async () => {
+            const order = await api<{ id: string }>("/api/topup/create", { memberId, amount: amountRef.current, method: purpose === "streak_bonus" ? "streak_bonus" : undefined });
+            activeOrderId = order.id;
+            return order.id;
+          },
           onApprove: async ({ orderID }) => {
             onDone(splitMsg("Paid with PayPal.", await api<Settled>("/api/topup/capture", { orderId: orderID })));
           },
           onError: (err) => onError(String((err as Error)?.message || err)),
+          onCancel: async () => {
+            if (purpose === "streak_bonus" && activeOrderId) await api("/api/topup/cancel", { orderId: activeOrderId });
+          },
         });
         buttons = b;
         b.render(el);
       })
       .catch((e) => onError(e.message));
     return () => buttons?.close();
-  }, [clientId, memberId, onDone, onError]);
+  }, [clientId, memberId, onDone, onError, purpose]);
 
   async function simulate() {
     setBusy(true);
     try {
-      const o = await api<{ id: string }>("/api/topup/create", { memberId, amount });
+      const o = await api<{ id: string }>("/api/topup/create", { memberId, amount, method: purpose === "streak_bonus" ? "streak_bonus" : undefined });
       onDone(splitMsg("Simulated PayPal payment.", await api<Settled>("/api/topup/capture", { orderId: o.id })));
     } catch (e) {
       onError((e as Error).message);
@@ -104,8 +115,8 @@ export function TopUp({
 
   return (
     <div className="space-y-2">
-      {clientId ? <div ref={ref} className="min-h-10" /> : <Button onClick={simulate} disabled={busy}>Pay with PayPal (simulated)</Button>}
-      {cryptoEnabled && (
+      {clientId ? <div ref={ref} className="min-h-10" /> : <Button onClick={simulate} disabled={busy}>{purpose === "streak_bonus" ? "Fund saving-streak match (simulated)" : "Pay with PayPal (simulated)"}</Button>}
+      {cryptoEnabled && purpose === "allowance" && (
         <Button variant="secondary" onClick={payCrypto} disabled={busy}>
           Pay with crypto (PYUSD)
         </Button>

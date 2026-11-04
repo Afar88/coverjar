@@ -1,5 +1,3 @@
-import { PayPalAgentToolkit } from "@paypal/agent-toolkit/ai-sdk";
-
 const clientId = process.env.PAYPAL_CLIENT_ID || "";
 const clientSecret = process.env.PAYPAL_CLIENT_SECRET || "";
 const isLive = process.env.PAYPAL_ENVIRONMENT?.toUpperCase() === "PRODUCTION";
@@ -87,71 +85,96 @@ export async function createOrder(opts: {
   return { id: order.id, status: order.status, approveUrl };
 }
 
+type CaptureDetails = { id: string; status: string; amount?: { value: string; currency_code: string } };
 type OrderDetails = {
   id: string;
   status: string;
-  purchase_units?: { payments?: { captures?: { id: string; status: string; amount: { value: string } }[] } }[];
+  purchase_units?: { payments?: { captures?: CaptureDetails[] } }[];
 };
 
 function firstCapture(o: OrderDetails) {
   return o.purchase_units?.[0]?.payments?.captures?.[0];
 }
 
+function captureResult(o: OrderDetails) {
+  const cap = firstCapture(o);
+  return {
+    status: cap?.status || o.status,
+    captureId: cap?.id || o.id,
+    amount: cap?.amount ? { value: cap.amount.value, currencyCode: cap.amount.currency_code } : null,
+  };
+}
+
 export async function captureOrder(orderId: string) {
-  if (!paypalConfigured || orderId.startsWith("MOCK-")) return { status: "COMPLETED", captureId: mockId("CAPTURE") };
+  if (!paypalConfigured || orderId.startsWith("MOCK-")) {
+    return { status: "COMPLETED", captureId: mockId("CAPTURE"), amount: null };
+  }
   const o = await paypalFetch<OrderDetails>(`/v2/checkout/orders/${orderId}/capture`, {
     method: "POST",
     requestId: `capture-${orderId}`,
   });
-  const cap = firstCapture(o);
-  return { status: cap?.status || o.status, captureId: cap?.id || orderId };
+  return captureResult(o);
 }
 
 export async function getOrderStatus(orderId: string) {
-  if (!paypalConfigured || orderId.startsWith("MOCK-")) return { status: "COMPLETED", captureId: mockId("CAPTURE") };
+  if (!paypalConfigured || orderId.startsWith("MOCK-")) {
+    return { status: "COMPLETED", captureId: mockId("CAPTURE"), amount: null };
+  }
   const o = await paypalFetch<OrderDetails>(`/v2/checkout/orders/${orderId}`);
-  const cap = firstCapture(o);
-  return { status: cap?.status || o.status, captureId: cap?.id || orderId };
+  return captureResult(o);
 }
 
 export async function sendPayout(opts: { email: string; cents: number; note: string; itemId: string }) {
   if (!paypalConfigured) return { batchId: mockId("PAYOUT"), status: "SUCCESS (simulated)" };
-  const res = await paypalFetch<{ batch_header: { payout_batch_id: string; batch_status: string } }>(
-    "/v1/payments/payouts",
-    {
-      method: "POST",
-      body: {
-        sender_batch_header: {
-          sender_batch_id: `paraguas-${opts.itemId}-${Date.now()}`,
-          email_subject: "Paraguas claim payout",
-          email_message: opts.note,
-        },
-        items: [
-          {
-            recipient_type: "EMAIL",
-            amount: { value: dollars(opts.cents), currency: "USD" },
-            receiver: opts.email,
-            note: opts.note,
-            sender_item_id: opts.itemId,
-          },
-        ],
-      },
+  const requestId = `payout-${opts.itemId}`;
+  const body = {
+    sender_batch_header: {
+      sender_batch_id: `paraguas-${opts.itemId}`,
+      email_subject: "Paraguas claim payout",
+      email_message: opts.note,
     },
-  );
-  const batchId = res.batch_header.payout_batch_id;
-  let status = res.batch_header.batch_status;
-  for (let i = 0; i < 6 && (status === "PENDING" || status === "PROCESSING"); i++) {
-    await new Promise((r) => setTimeout(r, 2000));
-    status = (await paypalFetch<{ batch_header: { batch_status: string } }>(`/v1/payments/payouts/${batchId}`)).batch_header.batch_status;
+    items: [{
+      recipient_type: "EMAIL",
+      amount: { value: dollars(opts.cents), currency: "USD" },
+      receiver: opts.email,
+      note: opts.note,
+      sender_item_id: opts.itemId,
+    }],
+  };
+  let res: { batch_header: { payout_batch_id: string; batch_status: string } };
+  try {
+    res = await paypalFetch<{ batch_header: { payout_batch_id: string; batch_status: string } }>("/v1/payments/payouts", { method: "POST", body, requestId });
+  } catch (firstError) {
+    // Re-submit with the same PayPal idempotency key: if the first response was lost,
+    // PayPal returns the original batch instead of creating a second payout.
+    try { res = await paypalFetch<{ batch_header: { payout_batch_id: string; batch_status: string } }>("/v1/payments/payouts", { method: "POST", body, requestId }); }
+    catch { throw firstError; }
   }
-  if (status === "DENIED" || status === "CANCELED") {
-    throw new Error(
-      `PayPal ${status.toLowerCase()} the payout (batch ${batchId}). Check that your PayPal business account has funds and Payouts is enabled for the app.`,
-    );
+  const batchId = res.batch_header?.payout_batch_id;
+  if (!batchId) throw new Error("PayPal did not return a payout batch reference");
+  let status = res.batch_header.batch_status;
+  try {
+    const firstCheck = await getPayoutStatus(batchId, opts.itemId);
+    status = firstCheck.batchStatus === "SUCCESS" ? firstCheck.itemStatus : firstCheck.batchStatus;
+  } catch { return { batchId, status: "UNKNOWN" }; }
+  for (let i = 0; i < 6 && (status === "PENDING" || status === "PROCESSING"); i++) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    try {
+      const check = await getPayoutStatus(batchId, opts.itemId);
+      status = check.batchStatus === "SUCCESS" ? check.itemStatus : check.batchStatus;
+    } catch { return { batchId, status: "UNKNOWN" }; }
   }
   return { batchId, status };
 }
 
+export async function getPayoutStatus(batchId: string, itemId: string) {
+  if (!paypalConfigured || batchId.startsWith("MOCK-")) return { batchStatus: "SUCCESS", itemStatus: "SUCCESS" };
+  const result = await paypalFetch<{ batch_header?: { batch_status?: string }; items?: { payout_item?: { sender_item_id?: string }; transaction_status?: string }[] }>(
+    `/v1/payments/payouts/${encodeURIComponent(batchId)}?page=1&page_size=100`,
+  );
+  const item = result.items?.find((entry) => entry.payout_item?.sender_item_id === itemId);
+  return { batchStatus: result.batch_header?.batch_status || "UNKNOWN", itemStatus: item?.transaction_status || "UNKNOWN" };
+}
 /** Sets up a weekly PayPal subscription that funds a teen's allowance. */
 export async function createAllowanceSubscription(opts: {
   teenName: string;
@@ -199,31 +222,90 @@ export async function createAllowanceSubscription(opts: {
   return { id: sub.id, approveUrl: sub.links.find((l) => l.rel === "approve")?.href || null };
 }
 
+/** Verify a webhook with PayPal's signature-verification endpoint. */
+export async function verifyPaypalWebhook(headers: Headers, event: unknown) {
+  const webhookId = process.env.PAYPAL_WEBHOOK_ID;
+  if (!webhookId) throw new Error("PAYPAL_WEBHOOK_ID is not configured");
+  const required = {
+    transmission_id: headers.get("paypal-transmission-id"),
+    transmission_time: headers.get("paypal-transmission-time"),
+    cert_url: headers.get("paypal-cert-url"),
+    auth_algo: headers.get("paypal-auth-algo"),
+    transmission_sig: headers.get("paypal-transmission-sig"),
+  };
+  if (Object.values(required).some((value) => !value)) return false;
+  const result = await paypalFetch<{ verification_status: string }>(
+    "/v1/notifications/verify-webhook-signature",
+    {
+      method: "POST",
+      body: { ...required, webhook_id: webhookId, webhook_event: event },
+    },
+  );
+  return result.verification_status === "SUCCESS";
+}
+
 export async function getSubscriptionStatus(id: string) {
   if (!paypalConfigured || id.startsWith("MOCK-")) return "ACTIVE";
-  const s = await paypalFetch<{ status: string }>(`/v1/billing/subscriptions/${id}`);
+  const s = await paypalFetch<{ status: string }>(`/v1/billing/subscriptions/${encodeURIComponent(id)}`);
   return s.status;
 }
 
-let toolkit: PayPalAgentToolkit | null = null;
+/** Return a limited, read-only view of a PayPal subscription for the family assistant. */
+export async function getPaypalSubscription(id: string) {
+  if (!paypalConfigured || id.startsWith("MOCK-")) return { id, status: "ACTIVE", simulated: true };
+  const s = await paypalFetch<{
+    id: string;
+    status: string;
+    plan_id?: string;
+    start_time?: string;
+    billing_info?: { next_billing_time?: string; failed_payments_count?: number };
+    subscriber?: { email_address?: string };
+  }>(`/v1/billing/subscriptions/${encodeURIComponent(id)}`);
+  return {
+    id: s.id,
+    status: s.status,
+    planId: s.plan_id || null,
+    startedAt: s.start_time || null,
+    nextBillingAt: s.billing_info?.next_billing_time || null,
+    failedPayments: s.billing_info?.failed_payments_count ?? 0,
+    subscriberEmail: s.subscriber?.email_address || null,
+  };
+}
 
-/** PayPal Agent Toolkit tools the parent's assistant may call (read-mostly; no money leaves without approval). */
-export function paypalAgentTools() {
-  if (!paypalConfigured) return {};
-  toolkit ??= new PayPalAgentToolkit({
-    clientId,
-    clientSecret,
-    configuration: {
-      actions: {
-        transactions: { list: true },
-        orders: { get: true },
-        invoices: { create: true, list: true, get: true, send: true },
-        subscriptionPlans: { list: true, show: true },
-        subscriptions: { show: true },
-        products: { list: true },
-      },
-      context: { sandbox: !isLive },
-    },
+/** Read recent PayPal transactions without exposing raw payer or account payloads. */
+export async function listPaypalTransactions(days = 7) {
+  if (!paypalConfigured) return { simulated: true, transactions: [] };
+  const end = new Date();
+  const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+  const query = new URLSearchParams({
+    start_date: start.toISOString(),
+    end_date: end.toISOString(),
+    fields: "all",
+    page_size: "20",
+    page: "1",
   });
-  return toolkit.getTools();
+  const result = await paypalFetch<{
+    transaction_details?: {
+      transaction_info?: {
+        transaction_id?: string;
+        transaction_status?: string;
+        transaction_amount?: { value?: string; currency?: string };
+        transaction_initiation_date?: string;
+        transaction_event_code?: string;
+      };
+      payer_info?: { email_address?: string };
+    }[];
+  }>(`/v1/reporting/transactions?${query.toString()}`);
+  return {
+    simulated: false,
+    transactions: (result.transaction_details || []).map(({ transaction_info: info, payer_info: payer }) => ({
+      id: info?.transaction_id || null,
+      status: info?.transaction_status || "UNKNOWN",
+      amount: info?.transaction_amount?.value || null,
+      currency: info?.transaction_amount?.currency || null,
+      date: info?.transaction_initiation_date || null,
+      type: info?.transaction_event_code || null,
+      payerEmail: payer?.email_address || null,
+    })),
+  };
 }
