@@ -16,7 +16,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   try { status = await getPayoutStatus(claim.paypal_ref, `claim-${claim.id}`); }
   catch (error) { return Response.json({ error: `Could not check PayPal yet: ${(error as Error).message}` }, { status: 502 }); }
 
-  const succeeded = status.itemStatus === "SUCCESS";
+  const succeeded = status.batchStatus === "SUCCESS" && status.itemStatus === "SUCCESS";
   const failed = ["DENIED", "CANCELED", "CANCELLED"].includes(status.batchStatus) || ["FAILED", "RETURNED", "BLOCKED", "REFUNDED"].includes(status.itemStatus);
   if (!succeeded && !failed) return Response.json({ ...getClaim(claim.id), payoutStatus: status.itemStatus, batchStatus: status.batchStatus, message: "PayPal has not confirmed a final outcome. The funds remain reserved; check again shortly." }, { status: 202 });
 
