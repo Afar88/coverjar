@@ -6,7 +6,7 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "CoverJar — allowance with a protection jar",
+  title: "Paraguas — allowance with a protection jar",
   description: "Teens build a family-funded protection jar from their allowance. Gemini reviews claims, parents approve, PayPal pays.",
 };
 

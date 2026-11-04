@@ -122,8 +122,8 @@ export async function sendPayout(opts: { email: string; cents: number; note: str
       method: "POST",
       body: {
         sender_batch_header: {
-          sender_batch_id: `coverjar-${opts.itemId}-${Date.now()}`,
-          email_subject: "CoverJar claim payout",
+          sender_batch_id: `paraguas-${opts.itemId}-${Date.now()}`,
+          email_subject: "Paraguas claim payout",
           email_message: opts.note,
         },
         items: [
@@ -151,7 +151,7 @@ export async function createAllowanceSubscription(opts: {
   if (!paypalConfigured) return { id: mockId("SUB"), approveUrl: null as string | null };
   const product = await paypalFetch<{ id: string }>("/v1/catalogs/products", {
     method: "POST",
-    body: { name: "CoverJar weekly allowance", type: "SERVICE", category: "SOFTWARE" },
+    body: { name: "Paraguas weekly allowance", type: "SERVICE", category: "SOFTWARE" },
     requestId: crypto.randomUUID(),
   });
   const plan = await paypalFetch<{ id: string }>("/v1/billing/plans", {
@@ -177,7 +177,7 @@ export async function createAllowanceSubscription(opts: {
     body: {
       plan_id: plan.id,
       application_context: {
-        brand_name: "CoverJar",
+        brand_name: "Paraguas",
         user_action: "SUBSCRIBE_NOW",
         return_url: opts.returnUrl,
         cancel_url: opts.cancelUrl,

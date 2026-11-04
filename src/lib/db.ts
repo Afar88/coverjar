@@ -61,7 +61,7 @@ let db: Database.Database | null = null;
 export function getDb() {
   if (db) return db;
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-  db = new Database(path.join(DATA_DIR, "coverjar.db"));
+  db = new Database(path.join(DATA_DIR, "paraguas.db"));
   db.pragma("journal_mode = WAL");
   db.exec(`
     CREATE TABLE IF NOT EXISTS members (
@@ -98,7 +98,7 @@ function seed(d: Database.Database) {
   const m = d.prepare(
     "INSERT INTO members (id, name, role, age, allowance_cents, payout_email, emoji) VALUES (?, ?, ?, ?, ?, ?, ?)",
   );
-  m.run("parent", "Ada", "parent", null, 0, process.env.DEMO_PARENT_EMAIL || "parent@coverjar.test", "👩🏾");
+  m.run("parent", "Ada", "parent", null, 0, process.env.DEMO_PARENT_EMAIL || "parent@paraguas.test", "👩🏾");
   m.run("tobi", "Tobi", "teen", 15, 2000, null, "🧑🏾‍🎤");
   m.run("zara", "Zara", "teen", 13, 1500, null, "👧🏾");
   d.prepare(

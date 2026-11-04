@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   try {
     const order = await createOrder({
       cents,
-      description: `CoverJar allowance for ${teen.name}`,
+      description: `Paraguas allowance for ${teen.name}`,
       referenceId: teen.id,
       crypto:
         method === "crypto"

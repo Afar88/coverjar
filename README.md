@@ -1,4 +1,6 @@
-# CoverJar
+# Paraguas ☂️
+
+*Paraguas* is Spanish for "umbrella": something you set up before the rainy day.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -6,11 +8,11 @@
 
 Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 
-> CoverJar is a self‑funded family savings pool, not an insurance product. No premiums are pooled across households and no risk is underwritten.
+> Paraguas is a self‑funded family savings pool, not an insurance product. No premiums are pooled across households and no risk is underwritten.
 
 ## Why
 
-Teens break phones, bikes and headphones. Parents usually pay, and the teen learns nothing about risk. Insurance for teens doesn't exist at this scale, and kids can't hold PayPal accounts. CoverJar gives families a tiny, transparent "insurance" they run themselves, and turns every accident into a money lesson.
+Teens break phones, bikes and headphones. Parents usually pay, and the teen learns nothing about risk. Insurance for teens doesn't exist at this scale, and kids can't hold PayPal accounts. Paraguas gives families a tiny, transparent "insurance" they run themselves, and turns every accident into a money lesson.
 
 ## How it works
 
@@ -37,8 +39,8 @@ Teens break phones, bikes and headphones. Parents usually pay, and the teen lear
 Requires Node 20+ (tested on Node 22).
 
 ```bash
-git clone https://github.com/Afar88/coverjar.git
-cd coverjar
+git clone https://github.com/Afar88/paraguas.git
+cd paraguas
 npm install
 cp .env.example .env.local   # optional: add keys
 npm run dev                  # http://localhost:3000
@@ -55,7 +57,7 @@ npm run dev                  # http://localhost:3000
 | `DEMO_PARENT_EMAIL`, `DEMO_REPAIR_SHOP_EMAIL` | Sandbox personal account emails (Testing Tools → Sandbox Accounts) to receive payouts |
 | `PAYPAL_CRYPTO_ENABLED=true` | Only after PayPal enables Pay with Crypto for your US merchant account |
 
-Data lives in `data/coverjar.db` (seeded with a demo family on first run). Delete it to reset.
+Data lives in `data/paraguas.db` (seeded with a demo family on first run). Delete it to reset.
 
 ## Demo script
 

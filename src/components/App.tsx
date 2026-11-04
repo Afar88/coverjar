@@ -46,7 +46,7 @@ export default function App() {
     };
   }, []);
 
-  if (!state) return <div className="p-10 text-slate-500">Loading CoverJar…</div>;
+  if (!state) return <div className="p-10 text-slate-500">Loading Paraguas…</div>;
   const teens = state.members.filter((m) => m.role === "teen");
   const current = teens.find((t) => t.id === view);
 
@@ -55,7 +55,7 @@ export default function App() {
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
-            <span className="text-emerald-600">Cover</span>Jar
+            <span aria-hidden>☂️ </span>Para<span className="text-emerald-600">guas</span>
           </h1>
           <p className="text-sm text-slate-500">Allowance with a built-in protection jar. Gemini reviews claims, parents approve, PayPal pays.</p>
         </div>

@@ -23,14 +23,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (cents > jar) return Response.json({ error: "Not enough in the protection jar" }, { status: 400 });
 
   const parent = getMember("parent")!;
-  const email = payee === "parent" ? parent.payout_email || "parent@coverjar.test" : rules.repair_shop_email;
+  const email = payee === "parent" ? parent.payout_email || "parent@paraguas.test" : rules.repair_shop_email;
   const lock = d.prepare("UPDATE claims SET status = 'paid', decided_at = datetime('now') WHERE id = ? AND status = 'pending_parent'").run(claim.id);
   if (lock.changes === 0) return Response.json({ error: "Claim already decided" }, { status: 409 });
   try {
     const payout = await sendPayout({
       email,
       cents,
-      note: `CoverJar claim #${claim.id}: ${claim.title}`,
+      note: `Paraguas claim #${claim.id}: ${claim.title}`,
       itemId: `claim-${claim.id}`,
     });
     d.prepare("UPDATE claims SET payout_cents = ?, payee_email = ?, paypal_ref = ?, parent_note = ? WHERE id = ?").run(

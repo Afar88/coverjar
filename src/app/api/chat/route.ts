@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   if (role === "teen") {
     const teen = getMember(memberId || "");
     if (!teen) return Response.json({ error: "Unknown teen" }, { status: 400 });
-    system = `You are Jarvis, CoverJar's friendly money coach for ${teen.name}${teen.age ? ` (age ${teen.age})` : ""}. Keep answers short (under 120 words), upbeat and concrete. Teach simple ideas: risk, deductibles, saving, needs vs wants. Never promise a claim will be paid: a parent decides. Use your tools to look up real numbers before quoting them.`;
+    system = `You are Jarvis, Paraguas's friendly money coach for ${teen.name}${teen.age ? ` (age ${teen.age})` : ""}. Keep answers short (under 120 words), upbeat and concrete. Teach simple ideas: risk, deductibles, saving, needs vs wants. Never promise a claim will be paid: a parent decides. Use your tools to look up real numbers before quoting them.`;
     tools = {
       my_balances: tool({
         description: "Get the teen's spending money and protection jar balance in cents",
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
       }),
     };
   } else {
-    system = `You are CoverJar's assistant for the parent. You help run the family protection jar and the PayPal side of it. Amounts in the app database are in cents; PayPal amounts are in dollars. Be concise. Before changing family rules, state the change you're making. You can use PayPal tools (sandbox) to look up transactions, subscriptions and invoices, and to create and send invoices when the parent asks.`;
+    system = `You are Paraguas's assistant for the parent. You help run the family protection jar and the PayPal side of it. Amounts in the app database are in cents; PayPal amounts are in dollars. Be concise. Before changing family rules, state the change you're making. You can use PayPal tools (sandbox) to look up transactions, subscriptions and invoices, and to create and send invoices when the parent asks.`;
     tools = {
       family_snapshot: tool({
         description: "Teens, their balances (cents) and the family rules",
