@@ -17,6 +17,8 @@ function detectPhoto(data: Buffer): { mime: string; extension: string } | null {
 export async function POST(req: Request) {
   const session = requireRole(req, "teen");
   if (!session) return Response.json({ error: "Teen access required" }, { status: 403 });
+  const contentLength = Number(req.headers.get("content-length") || 0);
+  if (contentLength > MAX_PHOTO_BYTES + 128 * 1024) return Response.json({ error: "Claim upload is too large. Keep the photo under 8 MB." }, { status: 413 });
   let form: FormData;
   try { form = await req.formData(); } catch { return Response.json({ error: "Invalid claim form or photo upload" }, { status: 400 }); }
   const teen = getMember(session.memberId);
