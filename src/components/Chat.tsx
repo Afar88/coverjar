@@ -4,7 +4,7 @@ import { api, Button, Card, inputCls } from "./ui";
 
 type Msg = { role: "user" | "assistant"; content: string; tools?: string[] };
 
-export function Chat({ role, memberId, title, intro, suggestions }: { role: "parent" | "teen"; memberId?: string; title: string; intro: string; suggestions: string[] }) {
+export function Chat({ persona, memberId, title, intro, suggestions }: { persona: "parent" | "teen"; memberId?: string; title: string; intro: string; suggestions: string[] }) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -17,7 +17,7 @@ export function Chat({ role, memberId, title, intro, suggestions }: { role: "par
     setBusy(true);
     try {
       const r = await api<{ text: string; tools: string[] }>("/api/chat", {
-        role,
+        role: persona,
         memberId,
         messages: next.map(({ role, content }) => ({ role, content })),
       });
