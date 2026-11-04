@@ -87,7 +87,8 @@ The app verifies each webhook with PayPal before processing it. A saving-streak 
 1. **Ada (parent)**: top up Tobi's allowance with PayPal. Watch 20% land in his jar.
 2. **Tobi (teen)**: file "Cracked phone screen" with a photo. Gemini reviews it.
 3. **Ada**: read Gemini's summary and risk flags, approve, and pay the repair shop via PayPal Payouts.
-4. **Tobi**: ask Jarvis "how long until my jar is full again?"
+4. **Ada**: optionally fund the saving-streak match after four consecutive weekly allowance deposits. The match is calculated from the last four weeks of jar contributions and only credited after PayPal confirms payment.
+5. **Tobi**: ask Jarvis "how long until my jar is full again?"
 6. **Ada**: ask the assistant "show recent PayPal transactions" or "raise the jar share to 25%".
 
 ## Project layout
