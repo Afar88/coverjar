@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 import { balances, getClaim, getClaims, getDb, getMember, getRules, UPLOAD_DIR } from "@/lib/db";
 import { toCents } from "@/lib/money";
 import { assessClaim } from "@/lib/gemini";
