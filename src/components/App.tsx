@@ -11,8 +11,8 @@ const RETURN_MESSAGES: Record<string, string> = {
   "topup=pending": "Crypto payment is still pending at PayPal.",
   "topup=cancelled": "Payment cancelled.",
   "topup=error": "Couldn't confirm the crypto payment.",
-  "subscribe=active": "Weekly allowance subscription is active. Week 1 credited.",
-  "subscribe=approved": "Weekly allowance subscription approved. Week 1 credited.",
+  "subscribe=active": "Weekly allowance subscription is active. PayPal will confirm the first allowance payment shortly.",
+  "subscribe=approved": "Subscription approved. Your allowance will be added when PayPal confirms the payment.",
   "subscribe=cancelled": "Subscription setup cancelled.",
   "subscribe=error": "Couldn't confirm the subscription.",
 };
