@@ -60,7 +60,8 @@ npm run dev                  # http://localhost:3000
 
 | Variable | Where to get it |
 |---|---|
-| `PARAGUAS_SESSION_SECRET`, `PARAGUAS_PARENT_PIN`, `PARAGUAS_TEEN_PIN` | Set your own long random session secret and separate 4–12 digit passcodes before deployment. Never commit `.env.local`. |\n| `GEMINI_API_KEY` | https://aistudio.google.com/apikey |
+| `PARAGUAS_SESSION_SECRET`, `PARAGUAS_PARENT_PIN`, `PARAGUAS_TEEN_PIN` | Set your own long random session secret and separate 4–12 digit passcodes before deployment. Never commit `.env.local`. |
+| `GEMINI_API_KEY` | https://aistudio.google.com/apikey |
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | https://developer.paypal.com → Apps & Credentials → **Sandbox** → Create App |
 | `PAYPAL_WEBHOOK_ID` | Webhook ID shown after adding `https://YOUR_PUBLIC_HOST/api/paypal/webhook` to that Sandbox app. Subscribe to `PAYMENT.SALE.COMPLETED`. |
 | `DEMO_PARENT_EMAIL`, `DEMO_REPAIR_SHOP_EMAIL` | Sandbox personal account emails (Testing Tools → Sandbox Accounts) to receive payouts |
