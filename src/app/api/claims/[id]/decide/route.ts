@@ -1,8 +1,10 @@
 import { addLedger, balances, getClaim, getDb, getMember, getRules } from "@/lib/db";
 import { toCents } from "@/lib/money";
 import { sendPayout } from "@/lib/paypal";
+import { requireRole } from "@/lib/auth";
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  if (!requireRole(req, "parent")) return Response.json({ error: "Parent access required" }, { status: 403 });
   const { id } = await ctx.params;
   const claimId = Number(id);
   if (!Number.isSafeInteger(claimId) || claimId <= 0) return Response.json({ error: "Invalid claim id" }, { status: 400 });
