@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     system = `You are Jarvis, Paraguas's friendly money coach for ${teen.name}${teen.age ? ` (age ${teen.age})` : ""}. Keep answers short (under 120 words), upbeat and concrete. Teach simple ideas: risk, deductibles, saving, needs vs wants. Never promise a claim will be paid: a parent decides. Use your tools to look up real numbers before quoting them.`;
     tools = {
       my_balances: tool({
-        description: "Get the teen's spending money and protection jar balance in cents",
+        description: "Get the teen's spending money and umbrella fund balance in cents",
         inputSchema: z.object({}),
         execute: async () => balances(teen.id),
       }),
@@ -38,13 +38,13 @@ export async function POST(req: Request) {
         execute: async () => getClaims(teen.id).map(({ id, title, status, amount_cents, payout_cents }) => ({ id, title, status, amount_cents, payout_cents })),
       }),
       family_rules: tool({
-        description: "What the protection jar covers and its limits",
+        description: "What the umbrella fund covers and its limits",
         inputSchema: z.object({}),
         execute: async () => getRules(),
       }),
     };
   } else {
-    system = `You are Paraguas's assistant for the parent. You help run the family protection jar and the PayPal side of it. Amounts in the app database are in cents; PayPal amounts are in dollars. Be concise. Before changing family rules, state the change you're making. You can use PayPal tools (sandbox) to look up transactions, subscriptions and invoices, and to create and send invoices when the parent asks.`;
+    system = `You are Paraguas's assistant for the parent. You help run the family umbrella fund and the PayPal side of it. Amounts in the app database are in cents; PayPal amounts are in dollars. Be concise. Before changing family rules, state the change you're making. You can use PayPal tools (sandbox) to look up transactions, subscriptions and invoices, and to create and send invoices when the parent asks.`;
     tools = {
       family_snapshot: tool({
         description: "Teens, their balances (cents) and the family rules",

@@ -57,7 +57,9 @@ export default function App() {
           <h1 className="text-2xl font-bold tracking-tight">
             <span aria-hidden>☂️ </span>Para<span className="text-emerald-600">guas</span>
           </h1>
-          <p className="text-sm text-slate-500">Allowance with a built-in protection jar. Gemini reviews claims, parents approve, PayPal pays.</p>
+          <p className="text-sm text-slate-500">
+            <em>Paraguas</em> is Spanish for <strong>&ldquo;umbrella&rdquo;</strong>. Part of every allowance becomes an umbrella that covers your teen when it rains: a cracked screen, a broken bike. Gemini reviews claims, parents approve, PayPal pays.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={state.config.paypal === "sandbox" ? "blue" : "amber"}>PayPal: {state.config.paypal}</Badge>
@@ -140,8 +142,8 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
         <Chat
           role="parent"
           title="Family assistant"
-          intro="I can look up PayPal transactions, subscriptions and invoices, summarise claims, and adjust the jar rules for you."
-          suggestions={["How are the jars doing?", "Show recent PayPal transactions", "Raise the jar share to 25%"]}
+          intro="I can look up PayPal transactions, subscriptions and invoices, summarise claims, and adjust the umbrella rules for you."
+          suggestions={["How are the umbrella funds doing?", "Show recent PayPal transactions", "Raise the umbrella share to 25%"]}
         />
       </div>
     </div>
@@ -173,13 +175,13 @@ function TeenFundingCard({ teen, state, onDone, onError }: { teen: Member; state
           <div className="text-xl font-semibold">{fmt(b.spend)}</div>
         </div>
         <div className="rounded-xl bg-emerald-50 p-3">
-          <div className="text-xs text-emerald-700">Protection jar</div>
+          <div className="text-xs text-emerald-700">Umbrella fund</div>
           <div className="text-xl font-semibold text-emerald-800">{fmt(b.jar)}</div>
         </div>
       </div>
       <label className="mb-1 block text-xs font-medium text-slate-600">Top up allowance ($)</label>
       <input className={`${inputCls} mb-2`} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" />
-      <p className="mb-3 text-xs text-slate-500">{state.rules.jar_percent}% goes into the protection jar automatically.</p>
+      <p className="mb-3 text-xs text-slate-500">{state.rules.jar_percent}% goes into the umbrella fund automatically.</p>
       <TopUp memberId={teen.id} amount={amount} clientId={state.config.paypalClientId} cryptoEnabled={state.config.cryptoEnabled} onDone={onDone} onError={onError} />
       <div className="mt-3">
         <Button variant="ghost" onClick={subscribe} disabled={busy}>
@@ -307,7 +309,7 @@ function RulesCard({ state, onDone, onError }: { state: AppState } & Handlers) {
     <Card title="Family rules">
       <div className="grid grid-cols-3 gap-2">
         <label className="text-xs text-slate-500">
-          Jar %<input className={inputCls} value={form.jar_percent} onChange={set("jar_percent")} />
+          Umbrella %<input className={inputCls} value={form.jar_percent} onChange={set("jar_percent")} />
         </label>
         <label className="text-xs text-slate-500">
           Deductible $<input className={inputCls} value={form.deductible} onChange={set("deductible")} />
@@ -357,7 +359,7 @@ function Ledger({ state, memberId }: { state: AppState; memberId?: string }) {
                   {l.paypal_ref && l.paypal_ref !== "SEED" && <span className="ml-1 font-mono text-xs text-slate-400">{l.paypal_ref}</span>}
                 </td>
                 <td>
-                  <Badge tone={l.bucket === "jar" ? "green" : "slate"}>{l.bucket === "jar" ? "jar" : "spending"}</Badge>
+                  <Badge tone={l.bucket === "jar" ? "green" : "slate"}>{l.bucket === "jar" ? "umbrella" : "spending"}</Badge>
                 </td>
                 <td className={`text-right font-medium ${l.amount_cents < 0 ? "text-rose-700" : "text-emerald-700"}`}>{fmt(l.amount_cents)}</td>
               </tr>
@@ -416,7 +418,7 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
             </div>
           </div>
           <div className="rounded-2xl bg-emerald-600 p-5 text-white">
-            <div className="text-sm text-emerald-100">🛡️ Protection jar</div>
+            <div className="text-sm text-emerald-100">☂️ Umbrella fund</div>
             <div className="text-3xl font-bold">{fmt(b.jar)}</div>
             <p className="mt-3 text-sm text-emerald-50">
               {state.rules.jar_percent}% of every allowance lands here. It covers accidents up to {fmt(state.rules.max_payout_cents)} (you pay the first {fmt(state.rules.deductible_cents)}).
@@ -460,8 +462,8 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
           role="teen"
           memberId={teen.id}
           title="Jarvis, your money coach"
-          intro={`Hey ${teen.name}! Ask me about your jar, what's covered, or how to save for something.`}
-          suggestions={["How much is in my jar?", "Is a cracked screen covered?", "How long to save $60?"]}
+          intro={`Hey ${teen.name}! Ask me about your umbrella fund, what's covered, or how to save for something.`}
+          suggestions={["How much is in my umbrella fund?", "Is a cracked screen covered?", "How long to save $60?"]}
         />
       </div>
     </div>

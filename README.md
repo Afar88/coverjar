@@ -1,10 +1,17 @@
 # Paraguas ☂️
 
-*Paraguas* is Spanish for "umbrella": something you set up before the rainy day.
+***Paraguas*** **is Spanish for "umbrella."** An umbrella covers you on a rainy day. Paraguas does the same for kids: a small part of every allowance becomes an *umbrella fund* that covers them when "it rains": a cracked phone screen, a broken bike, snapped headphones.
+
+| Rainy day | Paraguas |
+|---|---|
+| ☔ It starts raining | Something breaks (an accident) |
+| ☂️ The umbrella | The umbrella fund, built from a share of each allowance the parent pays through PayPal |
+| Opening the umbrella | The teen files a claim with a photo and **Gemini** reviews it |
+| Staying dry | The parent approves and **PayPal Payouts** pays for the repair |
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**An allowance that protects itself.** Parents fund a teen's weekly allowance through PayPal. A share of every allowance lands in a family‑funded *protection jar*. When something breaks, the teen files a claim with a photo, **Gemini** reviews it against the family's rules, the parent approves in one tap, and **PayPal Payouts** pays the repair shop.
+**An allowance that protects itself.** Parents fund a teen's weekly allowance through PayPal. A share of every allowance lands in a family‑funded *umbrella fund*. When something breaks, the teen files a claim with a photo, **Gemini** reviews it against the family's rules, the parent approves in one tap, and **PayPal Payouts** pays the repair shop.
 
 Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 
@@ -19,7 +26,7 @@ Teens break phones, bikes and headphones. Parents usually pay, and the teen lear
 | Step | What happens | Tech |
 |---|---|---|
 | Fund | Parent tops up or automates the weekly allowance | PayPal Orders v2 (JS SDK buttons), PayPal Subscriptions, optional **Pay with Crypto (PYUSD)** |
-| Split | `jar_percent` of each payment goes to the protection jar, the rest to spending money | SQLite ledger |
+| Split | `jar_percent` of each payment goes to the umbrella fund, the rest to spending money | SQLite ledger |
 | Claim | Teen describes what broke and uploads a photo | Gemini multimodal + structured output |
 | Review | Gemini checks coverage rules, inspects the photo, flags risks, estimates repair cost and writes a parent summary + a teen‑friendly coaching note | `generateObject` with a Zod schema |
 | Guardrails | Code enforces deductible, max payout and jar balance, regardless of what the model says | `applyFamilyCaps` |

@@ -70,7 +70,7 @@ export function applyFamilyCaps(
   }
   if (payout > jarBalance) {
     payout = Math.max(0, jarBalance);
-    caps.push("Protection jar balance");
+    caps.push("Umbrella fund balance");
   }
   return { ...raw, final_payout_cents: payout, caps_applied: caps, model };
 }
@@ -119,7 +119,7 @@ export async function assessClaim(opts: {
   if (!geminiConfigured) {
     return applyFamilyCaps(heuristicAssessment(claim, rules, opts.previousClaims.length), claim, rules, jarBalance, "offline-demo");
   }
-  const prompt = `You are Paraguas's claims reviewer for a family "protection jar": a self-funded pool that teens pay into from their allowance to cover accidents to their stuff. You are fair, kind and careful with money. Parents make the final call.
+  const prompt = `You are Paraguas's claims reviewer for a family "umbrella fund": a self-funded pool that teens pay into from their allowance to cover accidents to their stuff. You are fair, kind and careful with money. Parents make the final call.
 
 Family rules
 - Covered: ${rules.covered.join("; ")}

@@ -20,7 +20,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const jar = balances(claim.member_id).jar;
   if (!(cents > 0)) return Response.json({ error: "Enter a payout amount" }, { status: 400 });
   if (cents > rules.max_payout_cents) return Response.json({ error: "Above the family max payout" }, { status: 400 });
-  if (cents > jar) return Response.json({ error: "Not enough in the protection jar" }, { status: 400 });
+  if (cents > jar) return Response.json({ error: "Not enough in the umbrella fund" }, { status: 400 });
 
   const parent = getMember("parent")!;
   const email = payee === "parent" ? parent.payout_email || "parent@paraguas.test" : rules.repair_shop_email;

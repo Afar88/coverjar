@@ -125,13 +125,13 @@ function seed(d: Database.Database) {
     for (let weeksAgo = 12; weeksAgo >= 1; weeksAgo--) {
       const jar = Math.round((cents * 20) / 100);
       l.run(id, "spend", cents - jar, "allowance", "Weekly allowance", "SEED", `-${weeksAgo * 7} days`);
-      l.run(id, "jar", jar, "allowance", "Protection jar share", "SEED", `-${weeksAgo * 7} days`);
+      l.run(id, "jar", jar, "allowance", "Umbrella fund share", "SEED", `-${weeksAgo * 7} days`);
     }
   }
   l.run("tobi", "spend", -1250, "purchase", "Game top-up", null, "-9 days");
   l.run("zara", "spend", -600, "purchase", "Art supplies", null, "-5 days");
-  l.run("tobi", "jar", 2500, "bonus", "Parent kick-start for the jar", null, "-84 days");
-  l.run("zara", "jar", 2500, "bonus", "Parent kick-start for the jar", null, "-84 days");
+  l.run("tobi", "jar", 2500, "bonus", "Parent kick-start for the umbrella fund", null, "-84 days");
+  l.run("zara", "jar", 2500, "bonus", "Parent kick-start for the umbrella fund", null, "-84 days");
   l.run("tobi", "jar", 800, "bonus", "Parent bonus: 4-week saving streak", null, "-2 days");
 }
 
@@ -212,12 +212,12 @@ export function getClaim(id: number): Claim | undefined {
   return getDb().prepare("SELECT * FROM claims WHERE id = ?").get(id) as Claim | undefined;
 }
 
-/** Credit an allowance top-up, splitting it between spending money and the protection jar. */
+/** Credit an allowance top-up, splitting it between spending money and the umbrella fund. */
 export function creditAllowance(memberId: string, cents: number, ref: string, label: string) {
   const { jar_percent } = getRules();
   const jar = Math.round((cents * jar_percent) / 100);
   addLedger({ member_id: memberId, bucket: "spend", amount_cents: cents - jar, kind: "allowance", memo: label, paypal_ref: ref });
-  addLedger({ member_id: memberId, bucket: "jar", amount_cents: jar, kind: "allowance", memo: `Protection jar share (${jar_percent}%)`, paypal_ref: ref });
+  addLedger({ member_id: memberId, bucket: "jar", amount_cents: jar, kind: "allowance", memo: `Umbrella fund share (${jar_percent}%)`, paypal_ref: ref });
   return { spend: cents - jar, jar };
 }
 
