@@ -53,13 +53,13 @@ cp .env.example .env.local   # optional: add keys
 npm run dev                  # http://localhost:3000
 ```
 
-**No keys? It still works.** Without `PAYPAL_CLIENT_ID`/`PAYPAL_CLIENT_SECRET` payments are simulated (IDs prefixed `MOCK-`), and without `GEMINI_API_KEY` claims use a rule‑based fallback and chat is disabled. The header badges show which mode you're in.
+**No keys? It still works.** In local development, use parent passcode `2468` or teen passcode `1357`. Set `PARAGUAS_PARENT_PIN`, `PARAGUAS_TEEN_PIN`, and a long random `PARAGUAS_SESSION_SECRET` before production; production refuses the development defaults. Parent and teen sessions are signed, HTTP-only cookies, and server routes enforce each role. Without `PAYPAL_CLIENT_ID`/`PAYPAL_CLIENT_SECRET` payments are simulated (IDs prefixed `MOCK-`), and without `GEMINI_API_KEY` claims use a rule‑based fallback and chat is disabled. The header badges show which mode you're in.
 
 ### Keys
 
 | Variable | Where to get it |
 |---|---|
-| `GEMINI_API_KEY` | https://aistudio.google.com/apikey |
+| `PARAGUAS_SESSION_SECRET`, `PARAGUAS_PARENT_PIN`, `PARAGUAS_TEEN_PIN` | Set your own long random session secret and separate 4–12 digit passcodes before deployment. Never commit `.env.local`. |\n| `GEMINI_API_KEY` | https://aistudio.google.com/apikey |
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | https://developer.paypal.com → Apps & Credentials → **Sandbox** → Create App |
 | `PAYPAL_WEBHOOK_ID` | Webhook ID shown after adding `https://YOUR_PUBLIC_HOST/api/paypal/webhook` to that Sandbox app. Subscribe to `PAYMENT.SALE.COMPLETED`. |
 | `DEMO_PARENT_EMAIL`, `DEMO_REPAIR_SHOP_EMAIL` | Sandbox personal account emails (Testing Tools → Sandbox Accounts) to receive payouts |
