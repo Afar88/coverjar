@@ -237,7 +237,7 @@ function ParentClaim({ claim, teenName, state, onDone, onError }: { claim: Claim
     setBusy(true);
     try {
       const r = await api<Claim & { payoutStatus?: string }>(`/api/claims/${claim.id}/decide`, { decision, amount, payee });
-      onDone(decision === "approve" ? `Claim approved; PayPal payout status: ${r.payoutStatus || "pending"}.` : "Claim declined.");
+      onDone(decision === "approve" ? (r.status === "paid" ? `Paid ${amount} via PayPal Payouts (${r.paypal_ref}).` : `Claim approved; PayPal payout status: ${r.payoutStatus || "pending"}.`) : "Claim declined.");
     } catch (e) {
       onError((e as Error).message);
     } finally {
