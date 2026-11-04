@@ -12,7 +12,7 @@ export async function settlePayment(orderId:string,captureId:string,amount:Captu
     if(p.status==="COMPLETED")return {alreadySettled:true,payment:p};
     if(!orderId.startsWith("MOCK-")){
       const value=amount?.value; const currency=amount?.currencyCode;
-      const valid=typeof value==="string"&&/^(0|[1-9]\\d*)\\.\\d{2}$/.test(value);
+      const valid=typeof value==="string"&&/^(0|[1-9]\d*)\.\d{2}$/.test(value);
       const captured=valid?Number(value!.replace(".","")):NaN;
       if(currency!=="USD"||!Number.isSafeInteger(captured)||captured!==p.amount_cents)throw new Error("Captured amount or currency does not match the original order");
     }
