@@ -302,7 +302,7 @@ export function getStreakStatus(memberId: string): StreakStatus {
     weeks++;
   }
   const endWeek = rows[0].week_start;
-  const alreadyMatched = Boolean(d.prepare("SELECT 1 FROM streak_bonus_awards WHERE member_id = ? AND streak_end_week = ?").get(memberId, endWeek));
+  const alreadyMatched = Boolean(d.prepare("SELECT 1 FROM streak_bonus_awards WHERE member_id = ? AND streak_end_week = ? AND status IN (?, ?)").get(memberId, endWeek, "PENDING", "COMPLETED"));
   const eligible = weeks >= 4 && !alreadyMatched;
   const contributed = rows.slice(0, 4).reduce((sum, row) => sum + row.contributed, 0);
   const bonusCents = eligible ? Math.round((contributed * getRules().streak_bonus_percent) / 100) : 0;
@@ -311,7 +311,7 @@ export function getStreakStatus(memberId: string): StreakStatus {
 
 /** Reserve one unique match for a specific four-week streak before creating its PayPal order. */
 export function reserveStreakBonus(memberId: string, endWeek: string, orderId: string, amountCents: number) {
-  getDb().prepare("INSERT INTO streak_bonus_awards (member_id, streak_end_week, order_id, amount_cents, status) VALUES (?, ?, ?, ?, ?)").run(memberId, endWeek, orderId, amountCents, "PENDING");
+  getDb().prepare("INSERT INTO streak_bonus_awards (member_id, streak_end_week, order_id, amount_cents, status) VALUES (?, ?, ?, ?, ?) ON CONFLICT(member_id, streak_end_week) DO UPDATE SET order_id = excluded.order_id, amount_cents = excluded.amount_cents, status = excluded.status WHERE streak_bonus_awards.status = ?").run(memberId, endWeek, orderId, amountCents, "PENDING", "CANCELLED");
 }
 /** Credit an allowance top-up, splitting it between spending money and the umbrella fund. */
 export function creditAllowance(memberId: string, cents: number, ref: string, label: string) {
@@ -325,4 +325,14 @@ export function creditAllowance(memberId: string, cents: number, ref: string, la
 export function familySnapshot() {
   const teens = getTeens().map((t) => ({ ...t, balances: balances(t.id) }));
   return { teens, rules: getRules() };
+}
+
+/** Release a streak reservation only when the PayPal order is still uncompleted. */
+export function cancelStreakBonus(orderId: string) {
+  const d = getDb();
+  return d.transaction(() => {
+    const changed = d.prepare("UPDATE payments SET status = ? WHERE order_id = ? AND method = ? AND status = ?").run("CANCELLED", orderId, "streak_bonus", "CREATED");
+    if (changed.changes) d.prepare("UPDATE streak_bonus_awards SET status = ? WHERE order_id = ? AND status = ?").run("CANCELLED", orderId, "PENDING");
+    return changed.changes > 0;
+  })();
 }
