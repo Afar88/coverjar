@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { upload } from "@vercel/blob/client";
 import type { AppState, Claim, Member } from "./types";
 import { api, Badge, Button, Card, fmt, inputCls } from "./ui";
 import { TopUp } from "./PayPalButton";
@@ -468,9 +469,29 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
     e.preventDefault();
     const formEl = e.currentTarget;
     const fd = new FormData(formEl);
-    fd.set("memberId", teen.id);
+    const photo = fd.get("photo");
+    if (!(photo instanceof File) || photo.size === 0) {
+      onError("Choose a claim photo first.");
+      return;
+    }
+    if (photo.size > 8 * 1024 * 1024) {
+      onError("Photo must be under 8 MB.");
+      return;
+    }
+    const extension = photo.type === "image/jpeg" ? ".jpg" : photo.type === "image/png" ? ".png" : photo.type === "image/webp" ? ".webp" : "";
+    if (!extension) {
+      onError("Use a JPEG, PNG or WebP photo.");
+      return;
+    }
     setBusy(true);
     try {
+      const blob = await upload(`claims/${teen.id}/${crypto.randomUUID()}${extension}`, photo, {
+        access: "private",
+        handleUploadUrl: "/api/claim-photo/upload",
+        clientPayload: teen.id,
+      });
+      fd.delete("photo");
+      fd.set("photoPath", blob.pathname);
       await api("/api/claims", fd, true);
       formEl.reset();
       onDone("Claim sent! It has been reviewed and is now with your parent.");
