@@ -21,6 +21,13 @@
       "preset": "recommended",
       "style": {
         "useTemplate": "off"
+      },
+      "a11y": {
+        "noLabelWithoutControl": "off",
+        "useButtonType": "off"
+      },
+      "suspicious": {
+        "noArrayIndexKey": "off"
       }
     }
   }
