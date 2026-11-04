@@ -40,7 +40,7 @@ npm run dev
 
 Open http://localhost:3000.
 
-For local development, configure a Neon database and a private Vercel Blob store. Without provider credentials, the UI can still load, but database-backed features require `DATABASE_URL` and claim-photo uploads require `BLOB_READ_WRITE_TOKEN`. Do not use the old demo passcodes in production.
+For local development, configure a Neon database and a private Vercel Blob store (use `vercel env pull` to retrieve the Blob token). `DATABASE_URL` is required for login and all database-backed features; `BLOB_READ_WRITE_TOKEN` is required for claim-photo uploads. Gemini and PayPal credentials can be omitted to use the app's simulated/demo provider paths. Local demo passcodes are `2468` (parent) and `1357` (teen); never use them in production.
 
 ## Environment variables
 
