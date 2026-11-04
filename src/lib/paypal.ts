@@ -134,7 +134,7 @@ export async function sendPayout(opts: { email: string; cents: number; note: str
       method: "POST",
       body: {
         sender_batch_header: {
-          sender_batch_id: `paraguas-${opts.itemId}-${Date.now()}`,
+          sender_batch_id: `paraguas-${opts.itemId}`,
           email_subject: "Paraguas claim payout",
           email_message: opts.note,
         },
@@ -148,6 +148,7 @@ export async function sendPayout(opts: { email: string; cents: number; note: str
           },
         ],
       },
+      requestId: `payout-${opts.itemId}`,
     },
   );
   const batchId = res.batch_header.payout_batch_id;
@@ -155,11 +156,6 @@ export async function sendPayout(opts: { email: string; cents: number; note: str
   for (let i = 0; i < 6 && (status === "PENDING" || status === "PROCESSING"); i++) {
     await new Promise((r) => setTimeout(r, 2000));
     status = (await paypalFetch<{ batch_header: { batch_status: string } }>(`/v1/payments/payouts/${batchId}`)).batch_header.batch_status;
-  }
-  if (status === "DENIED" || status === "CANCELED") {
-    throw new Error(
-      `PayPal ${status.toLowerCase()} the payout (batch ${batchId}). Check that your PayPal business account has funds and Payouts is enabled for the app.`,
-    );
   }
   return { batchId, status };
 }
