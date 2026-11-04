@@ -29,5 +29,10 @@
     "typescript": "^5",
     "@biomejs/biome": "2.6.4"
   },
+  "overrides": {
+    "@vercel/cli-config": {
+      "zod": "^4.6.7"
+    }
+  },
   "description": "Family allowance and claim protection app powered by Neon PostgreSQL and private Vercel Blob."
 }
