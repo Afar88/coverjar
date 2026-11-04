@@ -23,5 +23,5 @@ export async function readClaimPhoto(pathname:string,memberId:string) {
 
 export async function deleteClaimPhoto(pathname:string,memberId:string) {
   if(!isMemberClaimPhotoPath(pathname,memberId))return;
-  await del(pathname,{access:"private"});
+  await del(pathname);
 }
