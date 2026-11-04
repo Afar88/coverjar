@@ -102,6 +102,11 @@ export function getDb() {
       PRIMARY KEY (member_id, streak_end_week)
     );
   `);
+  // Upgrade databases created before the optional saving-streak match setting existed.
+  const ruleColumns = db.pragma("table_info(rules)") as { name: string }[];
+  if (!ruleColumns.some((column) => column.name === "streak_bonus_percent")) {
+    db.exec("ALTER TABLE rules ADD COLUMN streak_bonus_percent INTEGER NOT NULL DEFAULT 10");
+  }
   const count = db.prepare("SELECT COUNT(*) AS n FROM members").get() as { n: number };
   if (count.n === 0) seed(db);
   return db;
