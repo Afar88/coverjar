@@ -26,9 +26,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Update only semver-compatible dependency resolutions
+      - name: Synchronize the lockfile with declared dependency versions
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Apply remaining semver-compatible security fixes
         run: |
-          npm audit fix --package-lock-only || echo "Some advisories require breaking major-version changes; no forced upgrades will be applied."
+          npm audit fix --package-lock-only || echo "Some advisories remain; no forced upgrades will be applied."
       - name: Install exactly from the updated lockfile
         run: npm ci
       - name: Run automated tests
