@@ -2,7 +2,7 @@ import { generateText, stepCountIs, tool, type ModelMessage, type Tool } from "a
 import { z } from "zod";
 import { balances, familySnapshot, getClaims, getLedger, getMember, getRules, updateRules } from "@/lib/db";
 import { geminiConfigured, withGemini } from "@/lib/gemini";
-import { paypalAgentTools } from "@/lib/paypal";
+import { getPaypalSubscription, listPaypalTransactions } from "@/lib/paypal";
 import { requireRole } from "@/lib/auth";
 
 export async function POST(req: Request) {
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
       }),
     };
   } else {
-    system = `You are Paraguas's assistant for the parent. You help run the family umbrella fund and the PayPal side of it. Amounts in the app database are in cents; PayPal amounts are in dollars. Be concise. Before changing family rules, state the change you're making. You can use PayPal tools (sandbox) to look up transactions, subscriptions and invoices, and to create and send invoices when the parent asks.`;
+    system = `You are Paraguas's assistant for the parent. You help run the family umbrella fund and the PayPal side of it. Amounts in the app database are in cents; PayPal amounts are in dollars. Be concise. Before changing family rules, state the change you're making. You can use read-only PayPal tools to look up recent transactions and subscription status. Never claim to create or send an invoice.`;
     tools = {
       family_snapshot: tool({
         description: "Teens, their balances (cents) and the family rules",
@@ -75,13 +75,16 @@ export async function POST(req: Request) {
             ...(a.max_payout_dollars !== undefined ? { max_payout_cents: Math.round(a.max_payout_dollars * 100) } : {}),
           }),
       }),
-      ...Object.fromEntries(
-        Object.entries(paypalAgentTools()).map(([name, t]) => {
-          // The PayPal toolkit ships AI SDK v4 tools (`parameters`); adapt them to v5 (`inputSchema`).
-          const legacy = t as unknown as { description?: string; parameters: Tool["inputSchema"]; execute: (args: unknown) => Promise<unknown> };
-          return [name, { description: legacy.description, inputSchema: legacy.parameters, execute: (args: unknown) => legacy.execute(args) } as Tool];
-        }),
-      ),
+      paypal_recent_transactions: tool({
+        description: "List the most recent PayPal transactions for the connected merchant account",
+        inputSchema: z.object({ days: z.number().int().min(1).max(90).default(7) }),
+        execute: async ({ days }) => listPaypalTransactions(days),
+      }),
+      paypal_subscription_status: tool({
+        description: "Look up the status and next billing date of a PayPal subscription using its subscription ID",
+        inputSchema: z.object({ subscription_id: z.string().min(5).max(128) }),
+        execute: async ({ subscription_id }) => getPaypalSubscription(subscription_id),
+      }),
     };
   }
 
