@@ -42,7 +42,7 @@ export type Claim = {
   description: string;
   amount_cents: number;
   photo_file: string | null;
-  status: "pending_parent" | "paid" | "denied";
+  status: "pending_parent" | "payout_pending" | "payout_failed" | "paid" | "denied";
   ai: Assessment | null;
   payout_cents: number | null;
   payee_email: string | null;
