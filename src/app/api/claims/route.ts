@@ -19,6 +19,7 @@ export async function POST(req: Request) {
   if (!teen || teen.role !== "teen") return Response.json({ error: "Unknown teen" }, { status: 400 });
   if (!title || !description) return Response.json({ error: "Add a title and say what happened" }, { status: 400 });
   if (!(cents > 0 && cents <= 100000)) return Response.json({ error: "Enter an amount up to $1,000" }, { status: 400 });
+  if (!(photo instanceof File) || photo.size === 0) return Response.json({ error: "Upload a clear photo of the damage to submit a claim" }, { status: 400 });
 
   let photoInfo: { data: Buffer; mime: string; file: string } | undefined;
   if (photo instanceof File && photo.size > 0) {
