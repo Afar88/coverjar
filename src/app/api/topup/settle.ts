@@ -18,7 +18,7 @@ export function settlePayment(orderId: string, captureId: string, amount: Captur
     if (!orderId.startsWith("MOCK-")) {
       const value = amount?.value;
       const currency = amount?.currencyCode;
-      const validValue = typeof value === "string" && /^(0|[1-9]\\d*)\\.\\d{2}$/.test(value);
+      const validValue = typeof value === "string" && /^(0|[1-9]\d*)\.\d{2}$/.test(value);
       const capturedCents = validValue ? Number(value.replace(".", "")) : NaN;
       if (currency !== "USD" || !Number.isSafeInteger(capturedCents) || capturedCents !== p.amount_cents) {
         throw new Error("Captured amount or currency does not match the original order");
