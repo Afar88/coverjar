@@ -9,7 +9,6 @@ test("claim API enforces roles, upload validation, submission limits and payout 
   process.env.DATA_DIR = dataDir;
   delete process.env.PAYPAL_CLIENT_ID;
   delete process.env.PAYPAL_CLIENT_SECRET;
-  process.env.NODE_ENV = "test";
 
   const { getDb, getClaim, balances } = await import("../src/lib/db");
   const { createSession, sessionCookie } = await import("../src/lib/auth");
