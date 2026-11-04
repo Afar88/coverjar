@@ -192,7 +192,7 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
       <div className="space-y-6">
         <RulesCard state={state} onDone={onDone} onError={onError} />
         <Chat
-          role="parent"
+          persona="parent"
           title="Family assistant"
           intro="I can look up PayPal transactions, subscriptions and invoices, summarise claims, and adjust the umbrella rules for you."
           suggestions={["How are the umbrella funds doing?", "Show recent PayPal transactions", "Raise the umbrella share to 25%"]}
@@ -561,7 +561,7 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
       </div>
       <div>
         <Chat
-          role="teen"
+          persona="teen"
           memberId={teen.id}
           title="Jarvis, your money coach"
           intro={`Hey ${teen.name}! Ask me about your umbrella fund, what's covered, or how to save for something.`}
