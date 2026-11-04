@@ -67,6 +67,19 @@ npm run dev                  # http://localhost:3000
 
 Data lives in `data/paraguas.db` (seeded with a demo family on first run). Delete it to reset.
 
+### Recurring allowance payments
+
+The subscription approval redirect does **not** credit an allowance. A verified PayPal `PAYMENT.SALE.COMPLETED` webhook is the source of truth for each billing cycle. The webhook handler maps the PayPal subscription to the teen, checks the paid amount, and credits the spending balance + umbrella-fund share in one SQLite transaction. PayPal event IDs and sale IDs are recorded to prevent duplicate credits when PayPal retries delivery.
+
+To connect it:
+
+1. Run Paraguas on a publicly reachable HTTPS host (or expose local development through a secure HTTPS tunnel).
+2. In the PayPal REST app settings, add the webhook URL: `https://YOUR_HOST/api/paypal/webhook`.
+3. Subscribe to `PAYMENT.SALE.COMPLETED`, `BILLING.SUBSCRIPTION.ACTIVATED`, `BILLING.SUBSCRIPTION.CANCELLED`, `BILLING.SUBSCRIPTION.SUSPENDED`, and `BILLING.SUBSCRIPTION.EXPIRED`.
+4. Copy the generated webhook ID into `PAYPAL_WEBHOOK_ID` in `.env.local`, then restart the app.
+
+The app verifies each webhook with PayPal before processing it. If verification or processing fails, the endpoint returns a non-2xx response so PayPal can retry. The no-credentials demo uses a clearly simulated one-time subscription settlement and does not need a webhook.
+
 ## Demo script
 
 1. **Ada (parent)**: top up Tobi's allowance with PayPal. Watch 20% land in his jar.
