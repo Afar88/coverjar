@@ -61,6 +61,7 @@ npm run dev                  # http://localhost:3000
 |---|---|
 | `GEMINI_API_KEY` | https://aistudio.google.com/apikey |
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | https://developer.paypal.com → Apps & Credentials → **Sandbox** → Create App |
+| `PAYPAL_WEBHOOK_ID` | Webhook ID shown after adding `https://YOUR_PUBLIC_HOST/api/paypal/webhook` to that Sandbox app. Subscribe to `PAYMENT.SALE.COMPLETED`. |
 | `DEMO_PARENT_EMAIL`, `DEMO_REPAIR_SHOP_EMAIL` | Sandbox personal account emails (Testing Tools → Sandbox Accounts) to receive payouts |
 | `PAYPAL_CRYPTO_ENABLED=true` | Only after PayPal enables Pay with Crypto for your US merchant account |
 
