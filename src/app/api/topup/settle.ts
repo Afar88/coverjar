@@ -35,6 +35,13 @@ export function settlePayment(orderId: string, captureId: string, amount: Captur
       throw new Error("Payment is not eligible for settlement");
     }
 
+    if (p.method === "streak_bonus") {
+      const award = d.prepare("UPDATE streak_bonus_awards SET status = ? WHERE order_id = ? AND status = ?").run("COMPLETED", orderId, "PENDING");
+      if (!award.changes) throw new Error("Saving streak match reservation is missing or already settled");
+      d.prepare("INSERT INTO ledger (member_id, bucket, amount_cents, kind, memo, paypal_ref) VALUES (?, ?, ?, ?, ?, ?)")
+        .run(teen.id, "jar", p.amount_cents, "bonus", "Parent-funded saving streak match", captureId);
+      return { alreadySettled: false, payment: { ...p, status: "COMPLETED" }, split: { spend: 0, jar: p.amount_cents } };
+    }
     const label = p.method === "crypto" ? "Allowance top-up (paid with crypto/PYUSD)" : "Allowance top-up via PayPal";
     const split = creditAllowance(teen.id, p.amount_cents, captureId, label);
     return { alreadySettled: false, payment: { ...p, status: "COMPLETED" }, split };
