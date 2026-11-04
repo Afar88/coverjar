@@ -46,7 +46,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       const result = d.prepare("UPDATE claims SET status = 'paid', decided_at = datetime('now') WHERE id = ? AND status = 'payout_pending' AND paypal_ref = ?").run(claim.id, batchId);
       return result.changes > 0;
     }
-    const result = d.prepare("UPDATE claims SET status = 'payout_failed', decided_at = datetime('now') WHERE id = ? AND status = 'payout_pending' AND paypal_ref = ?").run(claim.id, claim.paypal_ref);
+    const result = d.prepare("UPDATE claims SET status = 'payout_failed', decided_at = datetime('now') WHERE id = ? AND status = 'payout_pending' AND paypal_ref = ?").run(claim.id, batchId);
     if (result.changes > 0) addLedger({
       member_id: claim.member_id,
       bucket: "jar",
