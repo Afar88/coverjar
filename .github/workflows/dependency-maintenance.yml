@@ -1,0 +1,68 @@
+name: Safe dependency maintenance
+
+on:
+  push:
+    branches: [codex/milestone-1-payment-integrity]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: paraguas-dependency-maintenance
+  cancel-in-progress: false
+
+jobs:
+  update-compatible-lockfile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out maintenance branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/milestone-1-payment-integrity
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Update only semver-compatible dependency resolutions
+        run: |
+          npm audit fix --package-lock-only || echo "Some advisories require breaking major-version changes; no forced upgrades will be applied."
+      - name: Install exactly from the updated lockfile
+        run: npm ci
+      - name: Run automated tests
+        run: npm test
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Production build
+        run: npm run build
+        env:
+          GEMINI_API_KEY: ""
+          PAYPAL_CLIENT_ID: ""
+          PAYPAL_CLIENT_SECRET: ""
+          PAYPAL_ENVIRONMENT: SANDBOX
+      - name: Save dependency audit report
+        if: always()
+        run: npm audit --omit=dev --json > npm-audit-report.json || true
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paraguas-production-dependency-audit
+          path: npm-audit-report.json
+          retention-days: 14
+      - name: Commit verified lockfile updates
+        if: success()
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "No semver-compatible lockfile updates were available."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "chore: apply safe dependency security updates"
+          git push origin HEAD:codex/milestone-1-payment-integrity
