@@ -1,9 +1,12 @@
 import { addLedger, balances, getDb, getMember } from "@/lib/db";
 import { toCents } from "@/lib/money";
+import { requireRole } from "@/lib/auth";
 
 export async function POST(req: Request) {
-  const { memberId, amount, memo } = await req.json();
-  const teen = getMember(memberId);
+  const session = requireRole(req, "teen");
+  if (!session) return Response.json({ error: "Teen access required" }, { status: 403 });
+  const { amount, memo } = await req.json();
+  const teen = getMember(session.memberId);
   const cents = toCents(amount);
   if (!teen || teen.role !== "teen") return Response.json({ error: "Unknown teen" }, { status: 400 });
   if (!(cents > 0)) return Response.json({ error: "Enter an amount" }, { status: 400 });
