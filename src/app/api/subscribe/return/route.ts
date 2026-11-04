@@ -8,8 +8,11 @@ export async function GET(req: Request) {
   try {
     const status = await getSubscriptionStatus(subId);
     updateSubscriptionStatus(subId, status);
-    // The approval redirect is not proof that a billing cycle was paid.
-    // Actual allowance credits are issued only from verified PAYMENT.SALE.COMPLETED webhooks.
+    // Demo mode has no PayPal webhook, so simulate its first payment exactly once.
+    // Real subscriptions are credited only by verified PAYMENT.SALE.COMPLETED webhooks.
+    if (subId.startsWith("MOCK-") && (status === "ACTIVE" || status === "APPROVED")) {
+      recordMockSubscriptionPayment(subId);
+    }
     return Response.redirect(`${url.origin}/?subscribe=${status.toLowerCase()}`);
   } catch {
     return Response.redirect(`${url.origin}/?subscribe=error`);
