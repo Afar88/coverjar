@@ -272,7 +272,7 @@ function AiPanel({ claim }: { claim: Claim }) {
       <p className="mb-2 text-slate-800">{ai.parent_summary}</p>
       <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">AI is advisory only. Check the photo and family rules before making the final decision.</p>
       <div className="mb-2 flex flex-wrap gap-2">
-        <Badge tone={ai.photo_matches_description ? "green" : "rose"}>{ai.photo_matches_description ? "Photo matches description" : "Photo mismatch flagged"}</Badge>
+        <Badge tone={ai.model === "offline-demo" ? "amber" : ai.photo_matches_description ? "green" : "rose"}>{ai.model === "offline-demo" ? "Photo not analysed" : ai.photo_matches_description ? "Photo matches description" : "Photo mismatch flagged"}</Badge>
         <Badge tone={ai.risk_flags.length ? "amber" : "green"}>{ai.risk_flags.length ? `${ai.risk_flags.length} risk flag(s)` : "No risk flags"}</Badge>
       </div>
       <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
