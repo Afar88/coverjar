@@ -5,14 +5,14 @@ import { MAX_CLAIM_PHOTO_BYTES, isMemberClaimPhotoPath } from "@/lib/storage";
 const ALLOWED=["image/jpeg","image/png","image/webp"];
 
 export async function POST(request:Request) {
-  const session=requireRole(request,"teen");
-  if(!session)return Response.json({error:"Teen access required"},{status:403});
   let body:HandleUploadBody;
   try{body=await request.json() as HandleUploadBody;}catch{return Response.json({error:"Invalid upload request"},{status:400});}
   try {
     const response=await handleUpload({
       body,request,
       onBeforeGenerateToken:async(pathname,clientPayload)=>{
+        const session=requireRole(request,"teen");
+        if(!session)throw new Error("Teen access required");
         if(clientPayload!==session.memberId||!isMemberClaimPhotoPath(pathname,session.memberId))throw new Error("Upload path is not authorized for this teen account");
         return {allowedContentTypes:ALLOWED,maximumSizeInBytes:MAX_CLAIM_PHOTO_BYTES,addRandomSuffix:false,tokenPayload:JSON.stringify({memberId:session.memberId})};
       },
