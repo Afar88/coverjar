@@ -1,8 +1,11 @@
 import { getDb, getMember } from "@/lib/db";
 import { toCents } from "@/lib/money";
 import { createOrder } from "@/lib/paypal";
+import { requireRole } from "@/lib/auth";
 
 export async function POST(req: Request) {
+  const session = requireRole(req, "parent");
+  if (!session) return Response.json({ error: "Parent access required" }, { status: 403 });
   const { memberId, amount, method } = await req.json();
   const teen = getMember(memberId);
   const cents = toCents(amount);
