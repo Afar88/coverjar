@@ -268,6 +268,11 @@ function AiPanel({ claim }: { claim: Claim }) {
         <span className="text-xs text-slate-500">{ai.model}</span>
       </div>
       <p className="mb-2 text-slate-800">{ai.parent_summary}</p>
+      <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">AI is advisory only. Check the photo and family rules before making the final decision.</p>
+      <div className="mb-2 flex flex-wrap gap-2">
+        <Badge tone={ai.photo_matches_description ? "green" : "rose"}>{ai.photo_matches_description ? "Photo matches description" : "Photo mismatch flagged"}</Badge>
+        <Badge tone={ai.risk_flags.length ? "amber" : "green"}>{ai.risk_flags.length ? `${ai.risk_flags.length} risk flag(s)` : "No risk flags"}</Badge>
+      </div>
       <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
         <dt className="text-slate-500">Photo shows</dt>
         <dd>{ai.damage_observed}</dd>
@@ -295,11 +300,12 @@ function AiPanel({ claim }: { claim: Claim }) {
 function ParentClaim({ claim, teenName, state, onDone, onError }: { claim: Claim; teenName: string; state: AppState } & Handlers) {
   const [amount, setAmount] = useState(((claim.ai?.final_payout_cents ?? 0) / 100).toFixed(2));
   const [payee, setPayee] = useState(claim.ai?.payee ?? "repair_shop");
+  const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   async function decide(decision: "approve" | "deny") {
     setBusy(true);
     try {
-      const r = await api<Claim & { payoutStatus?: string }>(`/api/claims/${claim.id}/decide`, { decision, amount, payee });
+      const r = await api<Claim & { payoutStatus?: string }>("/api/claims/" + claim.id + "/decide", { decision, amount, payee, note });
       onDone(decision === "approve" ? (r.status === "paid" ? `Paid ${amount} via PayPal Payouts (${r.paypal_ref}).` : `Claim approved; PayPal payout status: ${r.payoutStatus || "pending"}.`) : "Claim declined.");
     } catch (e) {
       onError((e as Error).message);
@@ -336,6 +342,10 @@ function ParentClaim({ claim, teenName, state, onDone, onError }: { claim: Claim
             <option value="repair_shop">Repair shop ({state.rules.repair_shop_email})</option>
             <option value="parent">Me, for a replacement</option>
           </select>
+        </div>
+        <div className="w-full">
+          <label className="block text-xs text-slate-500">Note for the family (optional)</label>
+          <input className={`${inputCls} mt-1`} value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="Explain your decision or add a repair instruction" />
         </div>
         <Button onClick={() => decide("approve")} disabled={busy}>Approve & pay with PayPal</Button>
         <Button variant="danger" onClick={() => decide("deny")} disabled={busy}>Decline</Button>
@@ -528,7 +538,11 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
                     {c.status === "payout_failed" && <Badge tone="rose">Payout failed</Badge>}
                     {c.status === "denied" && <Badge tone="rose">Not covered</Badge>}
                   </div>
-                  {c.ai && <p className="mt-1 text-slate-600">✦ {c.ai.teen_message}</p>}
+                  <p className="mt-1 text-xs text-slate-500">Submitted {new Date(c.created_at.replace(" ", "T") + "Z").toLocaleString()} · Requested {fmt(c.amount_cents)}</p>
+                  {c.ai && <div className="mt-2 rounded-lg bg-slate-50 p-3"><p className="text-slate-700">✦ {c.ai.teen_message}</p><p className="mt-1 text-xs text-slate-500">AI estimate: {fmt(c.ai.estimated_repair_cents)} · Suggested support: {fmt(c.ai.final_payout_cents)}</p></div>}
+                  {c.payout_cents !== null && <p className="mt-2 text-sm">Approved: <strong>{fmt(c.payout_cents)}</strong></p>}
+                  {c.parent_note && <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Parent note: {c.parent_note}</p>}
+                  {c.paypal_ref && <p className="mt-1 break-all font-mono text-xs text-slate-500">Payment reference: {c.paypal_ref}</p>}
                 </div>
               ))}
             </div>
