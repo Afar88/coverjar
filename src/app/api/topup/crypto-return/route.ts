@@ -1,7 +1,9 @@
 import { getOrderStatus } from "@/lib/paypal";
 import { settlePayment } from "../settle";
+import { requireRole } from "@/lib/auth";
 
 export async function GET(req: Request) {
+  if (!requireRole(req, "parent")) return Response.redirect(new URL("/?topup=error", req.url));
   const url = new URL(req.url);
   const orderId = url.searchParams.get("token") || "";
   try {
