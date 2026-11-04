@@ -22,6 +22,8 @@ jobs:
       - name: Production dependency audit
         run: npm audit --omit=dev --audit-level=moderate
         continue-on-error: true
+      - name: Automated database tests
+        run: npm test
       - name: Lint
         run: npm run lint
       - name: Typecheck
