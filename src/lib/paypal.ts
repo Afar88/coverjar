@@ -207,6 +207,28 @@ export async function createAllowanceSubscription(opts: {
   return { id: sub.id, approveUrl: sub.links.find((l) => l.rel === "approve")?.href || null };
 }
 
+/** Verify a webhook with PayPal's signature-verification endpoint. */
+export async function verifyPaypalWebhook(headers: Headers, event: unknown) {
+  const webhookId = process.env.PAYPAL_WEBHOOK_ID;
+  if (!webhookId) throw new Error("PAYPAL_WEBHOOK_ID is not configured");
+  const required = {
+    transmission_id: headers.get("paypal-transmission-id"),
+    transmission_time: headers.get("paypal-transmission-time"),
+    cert_url: headers.get("paypal-cert-url"),
+    auth_algo: headers.get("paypal-auth-algo"),
+    transmission_sig: headers.get("paypal-transmission-sig"),
+  };
+  if (Object.values(required).some((value) => !value)) return false;
+  const result = await paypalFetch<{ verification_status: string }>(
+    "/v1/notifications/verify-webhook-signature",
+    {
+      method: "POST",
+      body: { ...required, webhook_id: webhookId, webhook_event: event },
+    },
+  );
+  return result.verification_status === "SUCCESS";
+}
+
 export async function getSubscriptionStatus(id: string) {
   if (!paypalConfigured || id.startsWith("MOCK-")) return "ACTIVE";
   const s = await paypalFetch<{ status: string }>(`/v1/billing/subscriptions/${id}`);
