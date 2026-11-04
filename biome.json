@@ -6,7 +6,11 @@
     "useIgnoreFile": true
   },
   "files": {
-    "ignoreUnknown": true
+    "includes": [
+      "src/**/*.ts",
+      "src/**/*.tsx",
+      "tests/**/*.ts"
+    ]
   },
   "formatter": {
     "enabled": false
@@ -14,7 +18,10 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "preset": "recommended",
+      "style": {
+        "useTemplate": "off"
+      }
     }
   }
 }
