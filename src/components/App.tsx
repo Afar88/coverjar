@@ -226,6 +226,26 @@ function TeenFundingCard({ teen, state, onDone, onError }: { teen: Member; state
       <input className={`${inputCls} mb-2`} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" />
       <p className="mb-3 text-xs text-slate-500">{state.rules.jar_percent}% goes into the umbrella fund automatically.</p>
       <TopUp memberId={teen.id} amount={amount} clientId={state.config.paypalClientId} cryptoEnabled={state.config.cryptoEnabled} onDone={onDone} onError={onError} />
+      {teen.streak && (
+        <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <strong className="text-sm text-emerald-900">Saving streak</strong>
+            <Badge tone={teen.streak.eligible ? "green" : "slate"}>{Math.min(teen.streak.weeks, 4)}/4 weeks</Badge>
+          </div>
+          {teen.streak.eligible ? (
+            <>
+              <p className="mt-1 text-xs text-emerald-800">Great consistency. Fund a ${(teen.streak.bonusCents / 100).toFixed(2)} parent match directly into {teen.name}&apos;s umbrella fund.</p>
+              <div className="mt-2">
+                <TopUp purpose="streak_bonus" memberId={teen.id} amount={(teen.streak.bonusCents / 100).toFixed(2)} clientId={state.config.paypalClientId} cryptoEnabled={false} onDone={onDone} onError={onError} />
+              </div>
+            </>
+          ) : teen.streak.alreadyMatched ? (
+            <p className="mt-1 text-xs text-emerald-800">This four-week streak has already been matched.</p>
+          ) : (
+            <p className="mt-1 text-xs text-slate-600">Four consecutive weeks of allowance savings unlock a parent-funded match.</p>
+          )}
+        </div>
+      )}
       <div className="mt-3">
         <Button variant="ghost" onClick={subscribe} disabled={busy}>
           ↻ Automate weekly allowance with PayPal Subscriptions
@@ -467,6 +487,15 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
               {state.rules.jar_percent}% of every allowance lands here. It covers accidents up to {fmt(state.rules.max_payout_cents)} (you pay the first {fmt(state.rules.deductible_cents)}).
             </p>
           </div>
+          {teen.streak && (
+            <div className="rounded-2xl border border-emerald-100 bg-white p-4">
+              <div className="flex items-center justify-between">
+                <strong className="text-sm">Your saving streak</strong>
+                <Badge tone={teen.streak.weeks >= 4 ? "green" : "slate"}>{Math.min(teen.streak.weeks, 4)}/4 weeks</Badge>
+              </div>
+              <p className="mt-2 text-xs text-slate-600">{teen.streak.eligible ? "You've unlocked a parent-funded bonus match. Ask your parent to review it." : "Keep your weekly allowance savings going to unlock a bonus match."}</p>
+            </div>
+          )}
         </div>
 
         <Card title="Something broke? File a claim">
