@@ -142,6 +142,12 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
   const pending = state.claims.filter((c) => c.status === "pending_parent");
   const decided = state.claims.filter((c) => c.status !== "pending_parent");
   const names = Object.fromEntries(state.members.map((m) => [m.id, m.name]));
+  async function reconcileClaim(id: number) {
+    try {
+      const result = await api<{ status: string; message?: string }>(`/api/claims/${id}/reconcile`, {});
+      onDone(result.status === "paid" ? "PayPal confirmed the claim payout." : result.message || "PayPal status checked.");
+    } catch (error) { onError((error as Error).message); }
+  }
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       <div className="space-y-6 lg:col-span-2">
@@ -175,6 +181,7 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
                   {c.payout_cents !== null && <p className="mt-2">Approved amount: <strong>{fmt(c.payout_cents)}</strong></p>}
                   {c.parent_note && <p className="mt-2 rounded-lg bg-slate-50 p-2 text-slate-700">Parent note: {c.parent_note}</p>}
                   {c.paypal_ref && <p className="mt-1 break-all font-mono text-xs text-slate-500">PayPal reference: {c.paypal_ref}</p>}
+                  {c.status === "payout_pending" && <div className="mt-3"><Button variant="secondary" onClick={() => reconcileClaim(c.id)}>Check PayPal payout status</Button><p className="mt-1 text-xs text-slate-500">This checks the existing transfer; it does not send another payment.</p></div>}
                 </div>
               ))}
             </div>
