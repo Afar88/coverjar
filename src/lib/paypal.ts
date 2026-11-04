@@ -145,11 +145,11 @@ export async function sendPayout(opts: { email: string; cents: number; note: str
   };
   let res: { batch_header: { payout_batch_id: string; batch_status: string } };
   try {
-    res = await paypalFetch("/v1/payments/payouts", { method: "POST", body, requestId });
+    res = await paypalFetch<{ batch_header: { payout_batch_id: string; batch_status: string } }>("/v1/payments/payouts", { method: "POST", body, requestId });
   } catch (firstError) {
     // Re-submit with the same PayPal idempotency key: if the first response was lost,
     // PayPal returns the original batch instead of creating a second payout.
-    try { res = await paypalFetch("/v1/payments/payouts", { method: "POST", body, requestId }); }
+    try { res = await paypalFetch<{ batch_header: { payout_batch_id: string; batch_status: string } }>("/v1/payments/payouts", { method: "POST", body, requestId }); }
     catch { throw firstError; }
   }
   const batchId = res.batch_header?.payout_batch_id;
