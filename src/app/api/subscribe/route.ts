@@ -1,7 +1,10 @@
 import { getMember, saveSubscription } from "@/lib/db";
 import { createAllowanceSubscription } from "@/lib/paypal";
+import { requireRole } from "@/lib/auth";
 
 export async function POST(req: Request) {
+  const session = requireRole(req, "parent");
+  if (!session) return Response.json({ error: "Parent access required" }, { status: 403 });
   const { memberId } = await req.json();
   const teen = getMember(memberId);
   if (!teen || teen.role !== "teen") return Response.json({ error: "Unknown teen" }, { status: 400 });
