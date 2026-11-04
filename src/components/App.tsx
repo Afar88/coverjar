@@ -127,7 +127,7 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
                     <strong>{names[c.member_id]}</strong>: {c.title}
                   </span>
                   <span className="flex items-center gap-2">
-                    {c.status === "paid" ? <Badge tone="green">Paid {fmt(c.payout_cents || 0)}</Badge> : <Badge tone="rose">Declined</Badge>}
+                    {c.status === "paid" ? <Badge tone="green">Paid {fmt(c.payout_cents || 0)}</Badge> : c.status === "payout_pending" ? <Badge tone="amber">Payout processing</Badge> : c.status === "payout_failed" ? <Badge tone="rose">Payout failed</Badge> : <Badge tone="rose">Declined</Badge>}
                     {c.paypal_ref && <code className="text-xs text-slate-500">{c.paypal_ref}</code>}
                   </span>
                 </div>
@@ -237,7 +237,7 @@ function ParentClaim({ claim, teenName, state, onDone, onError }: { claim: Claim
     setBusy(true);
     try {
       const r = await api<Claim & { payoutStatus?: string }>(`/api/claims/${claim.id}/decide`, { decision, amount, payee });
-      onDone(decision === "approve" ? `Paid ${amount} via PayPal Payouts (${r.paypal_ref}, ${r.payoutStatus}).` : "Claim declined.");
+      onDone(decision === "approve" ? `Claim approved; PayPal payout status: ${r.payoutStatus || "pending"}.` : "Claim declined.");
     } catch (e) {
       onError((e as Error).message);
     } finally {
@@ -447,6 +447,8 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
                     <strong>{c.title}</strong>
                     {c.status === "pending_parent" && <Badge tone="amber">Waiting for parent</Badge>}
                     {c.status === "paid" && <Badge tone="green">Paid {fmt(c.payout_cents || 0)}</Badge>}
+                    {c.status === "payout_pending" && <Badge tone="amber">Payout processing</Badge>}
+                    {c.status === "payout_failed" && <Badge tone="rose">Payout failed</Badge>}
                     {c.status === "denied" && <Badge tone="rose">Not covered</Badge>}
                   </div>
                   {c.ai && <p className="mt-1 text-slate-600">✦ {c.ai.teen_message}</p>}
