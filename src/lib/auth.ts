@@ -7,9 +7,9 @@ const MAX_AGE = 60 * 60 * 12;
 
 function secret() {
   const value = process.env.PARAGUAS_SESSION_SECRET;
-  if (value) return value;
+  if (value && value.length >= 32) return value;
   if (process.env.NODE_ENV !== "production") return "local-development-only-paraguas-session-secret";
-  throw new Error("PARAGUAS_SESSION_SECRET must be configured");
+  throw new Error("PARAGUAS_SESSION_SECRET must be configured with at least 32 characters");
 }
 
 function sign(value: string) {
