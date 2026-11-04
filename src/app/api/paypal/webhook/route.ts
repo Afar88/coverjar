@@ -2,7 +2,7 @@ import { recordSubscriptionPayment, updateSubscriptionStatus } from "@/lib/db";
 import { verifyPaypalWebhook } from "@/lib/paypal";
 
 type PaypalEvent={id?:string;event_type?:string;resource?:{id?:string;status?:string;billing_agreement_id?:string;amount?:{total?:string;value?:string;currency?:string;currency_code?:string};supplementary_data?:{related_ids?:{billing_agreement_id?:string}}}};
-function toCents(value:string){if(!/^\\d+(\\.\\d{1,2})?$/.test(value))return null;const [whole,fraction=""]=value.split(".");return Number(whole)*100+Number(fraction.padEnd(2,"0"));}
+function toCents(value:string){if(!/^\d+(\.\d{1,2})?$/.test(value))return null;const [whole,fraction=""]=value.split(".");return Number(whole)*100+Number(fraction.padEnd(2,"0"));}
 export async function POST(req:Request) {
   if(!process.env.PAYPAL_WEBHOOK_ID)return Response.json({error:"Webhook is not configured"},{status:503});
   let event:PaypalEvent;try{event=await req.json() as PaypalEvent;}catch{return Response.json({error:"Invalid webhook payload"},{status:400});}
