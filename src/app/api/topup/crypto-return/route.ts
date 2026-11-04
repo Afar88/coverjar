@@ -6,7 +6,7 @@ export async function GET(req: Request) {
   const orderId = url.searchParams.get("token") || "";
   try {
     const o = await getOrderStatus(orderId);
-    if (o.status === "COMPLETED") settlePayment(orderId, o.captureId);
+    if (o.status === "COMPLETED") settlePayment(orderId, o.captureId, o.amount);
     return Response.redirect(`${url.origin}/?topup=${o.status === "COMPLETED" ? "crypto-ok" : "pending"}`);
   } catch {
     return Response.redirect(`${url.origin}/?topup=error`);
