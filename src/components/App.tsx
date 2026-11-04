@@ -525,10 +525,10 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
         <Card title="Something broke? File a claim">
           <form onSubmit={fileClaim} className="space-y-3">
             <input name="title" className={inputCls} placeholder="e.g. Cracked phone screen" required />
-            <textarea name="description" className={`${inputCls} h-24`} placeholder="What happened? Be honest, Gemini checks the photo." required />
+            <textarea name="description" className={`${inputCls} h-24`} placeholder="What happened? Add details so the AI review can help your parent." required />
             <div className="flex flex-wrap gap-3">
               <input name="amount" className={`${inputCls} w-40`} placeholder="Repair cost ($)" inputMode="decimal" required />
-              <input name="photo" type="file" accept="image/*" className="text-sm" required />
+              <input name="photo" type="file" accept="image/jpeg,image/png,image/webp" className="text-sm" required />
             </div>
             <Button type="submit" disabled={busy}>{busy ? "Gemini is reviewing…" : "Send claim"}</Button>
           </form>
