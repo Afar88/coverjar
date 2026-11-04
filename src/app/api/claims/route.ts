@@ -3,12 +3,15 @@ import path from "node:path";
 import { balances, getClaim, getClaims, getDb, getMember, getRules, UPLOAD_DIR } from "@/lib/db";
 import { toCents } from "@/lib/money";
 import { assessClaim } from "@/lib/gemini";
+import { requireRole } from "@/lib/auth";
 
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 
 export async function POST(req: Request) {
+  const session = requireRole(req, "teen");
+  if (!session) return Response.json({ error: "Teen access required" }, { status: 403 });
   const form = await req.formData();
-  const teen = getMember(String(form.get("memberId") || ""));
+  const teen = getMember(session.memberId);
   const title = String(form.get("title") || "").trim().slice(0, 120);
   const description = String(form.get("description") || "").trim().slice(0, 2000);
   const cents = toCents(form.get("amount"));
