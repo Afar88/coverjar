@@ -382,6 +382,9 @@ function RulesCard({ state, onDone, onError }: { state: AppState } & Handlers) {
         <label className="text-xs text-slate-500">
           Max payout $<input className={inputCls} value={form.max_payout} onChange={set("max_payout")} />
         </label>
+        <label className="text-xs text-slate-500">
+          Streak match %<input className={inputCls} value={form.streak_bonus_percent} onChange={set("streak_bonus_percent")} inputMode="numeric" />
+        </label>
       </div>
       <label className="mt-3 block text-xs text-slate-500">
         Covered (one per line)
