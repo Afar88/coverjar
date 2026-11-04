@@ -11,7 +11,8 @@ export function detectClaimPhoto(data:Buffer):{mime:ClaimPhotoMime;extension:".j
 }
 
 export function isMemberClaimPhotoPath(pathname:string,memberId:string) {
-  return new RegExp(`^claims/${memberId.replace(/[.*+?^${}()|[\\]\\\\]/g,"\\\\$&")}/[a-f0-9-]+\\.(jpg|png|webp)$`).test(pathname);
+  return /^[a-zA-Z0-9_-]{1,64}$/.test(memberId) && pathname.startsWith(`claims/${memberId}/`) &&
+    /^claims\/[a-zA-Z0-9_-]{1,64}\/[a-f0-9-]+\.(jpg|png|webp)$/.test(pathname);
 }
 
 /** Read a private Blob by an authenticated member-scoped pathname, never a caller-supplied URL. */
