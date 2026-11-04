@@ -8,6 +8,7 @@ export type Member = {
   payout_email: string | null;
   emoji: string;
   balances: Balances | null;
+  streak: { weeks: number; bonusCents: number; eligible: boolean; alreadyMatched: boolean; endWeek: string | null } | null;
 };
 export type Rules = {
   jar_percent: number;
