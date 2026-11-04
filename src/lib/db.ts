@@ -147,7 +147,7 @@ export async function updateRules(patch: Partial<Rules>) {
   return next;
 }
 export async function getMembers(): Promise<Member[]> { return queryRows<Member>("SELECT * FROM members ORDER BY role,name"); }
-export async function getMember(id:string): Promise<Member|undefined> { return (await queryRows<Member>("SELECT * FROM members WHERE id=$1",[id]))[0]; }
+export async function getMember(id:string,executor?:Queryable): Promise<Member|undefined> { return (await queryRows<Member>("SELECT * FROM members WHERE id=$1",[id],executor))[0]; }
 export async function getTeens(): Promise<Member[]> { return (await getMembers()).filter(m=>m.role==="teen"); }
 export async function balances(memberId:string, executor?:Queryable) {
   const rows=await queryRows<{bucket:string;total:number}>("SELECT bucket,COALESCE(SUM(amount_cents),0)::int AS total FROM ledger WHERE member_id=$1 GROUP BY bucket",[memberId],executor);
