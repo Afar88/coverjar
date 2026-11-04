@@ -40,6 +40,7 @@ export function TopUp({
   cryptoEnabled,
   onDone,
   onError,
+  purpose = "allowance",
 }: {
   memberId: string;
   amount: string;
@@ -47,6 +48,7 @@ export function TopUp({
   cryptoEnabled: boolean;
   onDone: (msg: string) => void;
   onError: (msg: string) => void;
+  purpose?: "allowance" | "streak_bonus";
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const amountRef = useRef(amount);
