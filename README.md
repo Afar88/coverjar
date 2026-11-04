@@ -26,7 +26,8 @@ Teens break phones, bikes and headphones. Parents usually pay, and the teen lear
 | Step | What happens | Tech |
 |---|---|---|
 | Fund | Parent tops up or automates the weekly allowance | PayPal Orders v2 (JS SDK buttons), PayPal Subscriptions, optional **Pay with Crypto (PYUSD)** |
-| Split | `jar_percent` of each payment goes to the umbrella fund, the rest to spending money | SQLite ledger |
+| Split | `jar_percent` of each allowance goes to the umbrella fund, the rest to spending money | SQLite ledger |
+| Reward | Four consecutive weeks of allowance saving unlock a configurable parent-funded match; PayPal payment goes directly into the jar | PayPal Orders + idempotent SQLite ledger |
 | Claim | Teen describes what broke and uploads a photo | Gemini multimodal + structured output |
 | Review | Gemini checks coverage rules, inspects the photo, flags risks, estimates repair cost and writes a parent summary + a teen‑friendly coaching note | `generateObject` with a Zod schema |
 | Guardrails | Code enforces deductible, max payout and jar balance, regardless of what the model says | `applyFamilyCaps` |
@@ -78,7 +79,7 @@ To connect it:
 3. Subscribe to `PAYMENT.SALE.COMPLETED`, `BILLING.SUBSCRIPTION.ACTIVATED`, `BILLING.SUBSCRIPTION.CANCELLED`, `BILLING.SUBSCRIPTION.SUSPENDED`, and `BILLING.SUBSCRIPTION.EXPIRED`.
 4. Copy the generated webhook ID into `PAYPAL_WEBHOOK_ID` in `.env.local`, then restart the app.
 
-The app verifies each webhook with PayPal before processing it. If verification or processing fails, the endpoint returns a non-2xx response so PayPal can retry. The no-credentials demo uses a clearly simulated one-time subscription settlement and does not need a webhook.
+The app verifies each webhook with PayPal before processing it. A saving-streak match is a separate parent-funded PayPal payment, not newly created or simulated family money; the match is credited to the jar only after capture confirmation. Four consecutive calendar weeks with positive allowance-to-jar deposits are required, and the configurable match percentage is applied to those four weeks of jar contributions. If verification or processing fails, the endpoint returns a non-2xx response so PayPal can retry. The no-credentials demo uses a clearly simulated one-time subscription settlement and does not need a webhook.
 
 ## Demo script
 
@@ -86,7 +87,7 @@ The app verifies each webhook with PayPal before processing it. If verification 
 2. **Tobi (teen)**: file "Cracked phone screen" with a photo. Gemini reviews it.
 3. **Ada**: read Gemini's summary and risk flags, approve, and pay the repair shop via PayPal Payouts.
 4. **Tobi**: ask Jarvis "how long until my jar is full again?"
-5. **Ada**: ask the assistant "show recent PayPal transactions" or "raise the jar share to 25%".
+6. **Ada**: ask the assistant "show recent PayPal transactions" or "raise the jar share to 25%".
 
 ## Project layout
 
