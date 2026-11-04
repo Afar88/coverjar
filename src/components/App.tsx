@@ -107,7 +107,6 @@ export default function App() {
           </label>
           <Button type="submit" disabled={busy || (role === "teen" && !memberId)}>{busy ? "Signing in…" : "Sign in"}</Button>
           {toast && <p className={`text-sm ${toast.error ? "text-rose-700" : "text-emerald-700"}`}>{toast.msg}</p>}
-          <p className="text-xs text-slate-400">Demo passcodes: parent 2468 · teen 1357. Change these before any public deployment.</p>
         </form>
       </div>
     );
