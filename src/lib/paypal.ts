@@ -155,10 +155,16 @@ export async function sendPayout(opts: { email: string; cents: number; note: str
   const batchId = res.batch_header?.payout_batch_id;
   if (!batchId) throw new Error("PayPal did not return a payout batch reference");
   let status = res.batch_header.batch_status;
+  try {
+    const firstCheck = await getPayoutStatus(batchId, opts.itemId);
+    status = firstCheck.batchStatus === "SUCCESS" ? firstCheck.itemStatus : firstCheck.batchStatus;
+  } catch { return { batchId, status: "UNKNOWN" }; }
   for (let i = 0; i < 6 && (status === "PENDING" || status === "PROCESSING"); i++) {
     await new Promise((resolve) => setTimeout(resolve, 2000));
-    try { status = (await getPayoutStatus(batchId, opts.itemId)).batchStatus; }
-    catch { return { batchId, status: "UNKNOWN" }; }
+    try {
+      const check = await getPayoutStatus(batchId, opts.itemId);
+      status = check.batchStatus === "SUCCESS" ? check.itemStatus : check.batchStatus;
+    } catch { return { batchId, status: "UNKNOWN" }; }
   }
   return { batchId, status };
 }
