@@ -33,7 +33,7 @@ export async function POST(req:Request) {
     if(!detected||detected.mime!==blob.blob.contentType)return Response.json({error:"Use a valid JPEG, PNG or WebP photo. SVG and other file types are not accepted."},{status:400});
     const ai=await assessClaim({claim:{title,description,amount_cents:cents},teenName:teen.name,teenAge:teen.age,rules:await getRules(),
       jarBalance:(await balances(teen.id)).jar,previousClaims:(await getClaims(teen.id)).map(c=>({title:c.title,status:c.status,created_at:c.created_at})),
-      photo:{data,mime:detected.mime,file:photoPath}});
+      photo:{data,mime:detected.mime}});
     const claim=await insertClaim({member_id:teen.id,title,description,amount_cents:cents,photo_file:photoPath,photo_mime:detected.mime,ai});
     savedPhoto=true;
     return Response.json({...claim,ai});
