@@ -92,6 +92,9 @@ export function getDb() {
       subscription_id TEXT PRIMARY KEY, member_id TEXT NOT NULL, amount_cents INTEGER NOT NULL,
       status TEXT NOT NULL DEFAULT 'APPROVAL_PENDING', created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS login_rate_limits (
+      rate_key TEXT PRIMARY KEY, window_started_at INTEGER NOT NULL, attempts INTEGER NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS paypal_webhook_events (
       event_id TEXT PRIMARY KEY, event_type TEXT NOT NULL, processed_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -228,6 +231,34 @@ export function getClaims(memberId?: string): Claim[] {
 
 export function getClaim(id: number): Claim | undefined {
   return getDb().prepare("SELECT * FROM claims WHERE id = ?").get(id) as Claim | undefined;
+}
+
+/** Atomically allow a bounded number of actions for one account within a rolling window. */
+export function consumeRateLimit(rateKey: string, limit: number, windowMs: number) {
+  if (!rateKey || !Number.isSafeInteger(limit) || limit < 1 || !Number.isSafeInteger(windowMs) || windowMs < 1) {
+    throw new Error("Invalid rate-limit configuration");
+  }
+  const d = getDb();
+  const now = Date.now();
+  return d.transaction(() => {
+    const current = d.prepare("SELECT window_started_at, attempts FROM login_rate_limits WHERE rate_key = ?")
+      .get(rateKey) as { window_started_at: number; attempts: number } | undefined;
+    if (!current || now - current.window_started_at >= windowMs || now < current.window_started_at) {
+      d.prepare("INSERT INTO login_rate_limits (rate_key, window_started_at, attempts) VALUES (?, ?, 1) ON CONFLICT(rate_key) DO UPDATE SET window_started_at = excluded.window_started_at, attempts = 1")
+        .run(rateKey, now);
+      return { allowed: true, remaining: limit - 1, retryAfterSeconds: 0 };
+    }
+    if (current.attempts >= limit) {
+      return {
+        allowed: false,
+        remaining: 0,
+        retryAfterSeconds: Math.max(1, Math.ceil((current.window_started_at + windowMs - now) / 1000)),
+      };
+    }
+    const next = current.attempts + 1;
+    d.prepare("UPDATE login_rate_limits SET attempts = ? WHERE rate_key = ?").run(next, rateKey);
+    return { allowed: true, remaining: Math.max(0, limit - next), retryAfterSeconds: 0 };
+  })();
 }
 
 /** Save the PayPal subscription-to-member mapping before the payer is redirected. */
