@@ -165,14 +165,16 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
           <Card title="Decided claims">
             <div className="space-y-2">
               {decided.map((c) => (
-                <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2 text-sm last:border-0">
-                  <span>
-                    <strong>{names[c.member_id]}</strong>: {c.title}
-                  </span>
-                  <span className="flex items-center gap-2">
+                <div key={c.id} className="rounded-xl border border-slate-200 p-3 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <strong>{names[c.member_id]}: {c.title}</strong>
                     {c.status === "paid" ? <Badge tone="green">Paid {fmt(c.payout_cents || 0)}</Badge> : c.status === "payout_pending" ? <Badge tone="amber">Payout processing</Badge> : c.status === "payout_failed" ? <Badge tone="rose">Payout failed</Badge> : <Badge tone="rose">Declined</Badge>}
-                    {c.paypal_ref && <code className="text-xs text-slate-500">{c.paypal_ref}</code>}
-                  </span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">Requested {fmt(c.amount_cents)} · Submitted {new Date(c.created_at.replace(" ", "T") + "Z").toLocaleString()}</p>
+                  {c.ai && <div className="mt-2"><AiPanel claim={c} /></div>}
+                  {c.payout_cents !== null && <p className="mt-2">Approved amount: <strong>{fmt(c.payout_cents)}</strong></p>}
+                  {c.parent_note && <p className="mt-2 rounded-lg bg-slate-50 p-2 text-slate-700">Parent note: {c.parent_note}</p>}
+                  {c.paypal_ref && <p className="mt-1 break-all font-mono text-xs text-slate-500">PayPal reference: {c.paypal_ref}</p>}
                 </div>
               ))}
             </div>
