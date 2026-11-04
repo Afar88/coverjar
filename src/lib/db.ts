@@ -1,4 +1,4 @@
-import { Pool, type PoolClient } from "@neondatabase/serverless";
+import { Pool } from "@neondatabase/serverless";
 
 export type Member = {
   id: string; name: string; role: "parent" | "teen"; age: number | null;
@@ -19,15 +19,18 @@ export type Claim = {
   payout_cents: number | null; payee_email: string | null; paypal_ref: string | null;
   parent_note: string | null; created_at: string; decided_at: string | null;
 };
-type Queryable = { query: (text: string, values?: unknown[]) => Promise<{ rows: any[]; rowCount: number | null }> };
+type QueryResult = { rows: any[]; rowCount: number | null };
+type Queryable = { query: (text: string, values?: unknown[]) => Promise<QueryResult> };
+type ReleasableClient = Queryable & { release: () => void };
+type PoolLike = Queryable & { connect: () => Promise<ReleasableClient> };
 
-let pool: Pool | null = null;
+let pool: PoolLike | null = null;
 let schemaPromise: Promise<void> | null = null;
 
 function getPool() {
   if (pool) return pool;
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL must be configured with a Neon PostgreSQL connection string");
-  pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5, idleTimeoutMillis: 10_000, connectionTimeoutMillis: 8_000 });
+  pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5, idleTimeoutMillis: 10_000, connectionTimeoutMillis: 8_000 }) as unknown as PoolLike;
   return pool;
 }
 
@@ -94,7 +97,7 @@ async function ensureSchema() {
   return schemaPromise;
 }
 
-async function seed(client: PoolClient) {
+async function seed(client: Queryable) {
   await client.query("INSERT INTO members (id,name,role,age,allowance_cents,payout_email,emoji) VALUES ($1,$2,$3,$4,$5,$6,$7),($8,$9,$10,$11,$12,$13,$14),($15,$16,$17,$18,$19,$20,$21)",
     ["parent","Ada","parent",null,0,process.env.DEMO_PARENT_EMAIL || "parent@paraguas.test","👩🏾","tobi","Tobi","teen",15,2000,null,"🧑🏾‍🎤","zara","Zara","teen",13,1500,null,"👧🏾"]);
   await client.query("INSERT INTO rules (id,jar_percent,deductible_cents,max_payout_cents,streak_bonus_percent,covered,excluded,repair_shop_email) VALUES (1,20,500,15000,10,$1::jsonb,$2::jsonb,$3)",
@@ -118,7 +121,7 @@ export async function execute(text: string, values: unknown[] = [], executor?: Q
   if (!executor) await ensureSchema();
   return (await (executor ?? getPool()).query(text, values)).rowCount ?? 0;
 }
-export async function withTransaction<T>(work: (client: PoolClient) => Promise<T>): Promise<T> {
+export async function withTransaction<T>(work: (client: Queryable) => Promise<T>): Promise<T> {
   await ensureSchema();
   const client = await getPool().connect();
   try {
@@ -263,6 +266,6 @@ export async function cancelStreakBonus(orderId:string) {
 
 /** Test-only injection point; production always uses DATABASE_URL and Neon Pool. */
 export function setPoolForTests(value: unknown) {
-  pool = value as Pool;
+  pool = value as PoolLike;
   schemaPromise = null;
 }
