@@ -28,5 +28,6 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "@biomejs/biome": "2.6.4"
-  }
+  },
+  "description": "Family allowance and claim protection app powered by Neon PostgreSQL and private Vercel Blob."
 }
