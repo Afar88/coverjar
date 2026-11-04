@@ -509,7 +509,7 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
             <textarea name="description" className={`${inputCls} h-24`} placeholder="What happened? Be honest, Gemini checks the photo." required />
             <div className="flex flex-wrap gap-3">
               <input name="amount" className={`${inputCls} w-40`} placeholder="Repair cost ($)" inputMode="decimal" required />
-              <input name="photo" type="file" accept="image/*" className="text-sm" />
+              <input name="photo" type="file" accept="image/*" className="text-sm" required />
             </div>
             <Button type="submit" disabled={busy}>{busy ? "Gemini is reviewing…" : "Send claim"}</Button>
           </form>
