@@ -1,11 +1,44 @@
+import { getDb } from "@/lib/db";
 import { captureOrder } from "@/lib/paypal";
 import { settlePayment } from "../settle";
 
+type StoredPayment = { order_id: string; amount_cents: number; status: string };
+
 export async function POST(req: Request) {
-  const { orderId } = await req.json();
+  let body: { orderId?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: "Invalid request body" }, { status: 400 });
+  }
+
+  const orderId = typeof body.orderId === "string" ? body.orderId.trim() : "";
+  if (!orderId || orderId.length > 128) return Response.json({ error: "A valid orderId is required" }, { status: 400 });
+
+  const payment = getDb()
+    .prepare("SELECT order_id, amount_cents, status FROM payments WHERE order_id = ?")
+    .get(orderId) as StoredPayment | undefined;
+  if (!payment) return Response.json({ error: "Unknown payment order" }, { status: 404 });
+  if (payment.status === "COMPLETED") return Response.json({ alreadySettled: true, payment });
+
   try {
     const cap = await captureOrder(orderId);
-    if (cap.status !== "COMPLETED") return Response.json({ error: `Payment status: ${cap.status}` }, { status: 402 });
+    if (cap.status !== "COMPLETED") {
+      return Response.json({ error: `Payment status: ${cap.status}` }, { status: 402 });
+    }
+
+    // Mock mode has no PayPal capture payload. Live captures must match the
+    // original server-side order amount and USD currency exactly.
+    if (!orderId.startsWith("MOCK-")) {
+      const value = cap.amount?.value;
+      const currency = cap.amount?.currencyCode;
+      const match = typeof value === "string" && /^(0|[1-9]\d*)\.\d{2}$/.test(value);
+      const capturedCents = match ? Number(value.replace(".", "")) : NaN;
+      if (currency !== "USD" || !Number.isSafeInteger(capturedCents) || capturedCents !== payment.amount_cents) {
+        return Response.json({ error: "Captured amount or currency does not match the original order. No allowance was credited." }, { status: 409 });
+      }
+    }
+
     return Response.json(settlePayment(orderId, cap.captureId));
   } catch (e) {
     return Response.json({ error: (e as Error).message }, { status: 502 });
