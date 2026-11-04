@@ -359,6 +359,7 @@ function RulesCard({ state, onDone, onError }: { state: AppState } & Handlers) {
     try {
       await api("/api/rules", {
         jar_percent: form.jar_percent,
+        streak_bonus_percent: form.streak_bonus_percent,
         deductible: form.deductible,
         max_payout: form.max_payout,
         covered: form.covered.split("\n").map((s) => s.trim()).filter(Boolean),
