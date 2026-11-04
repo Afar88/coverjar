@@ -3,9 +3,14 @@ import { z } from "zod";
 import { balances, familySnapshot, getClaims, getLedger, getMember, getRules, updateRules } from "@/lib/db";
 import { geminiConfigured, withGemini } from "@/lib/gemini";
 import { paypalAgentTools } from "@/lib/paypal";
+import { requireRole } from "@/lib/auth";
 
 export async function POST(req: Request) {
-  const { role, memberId, messages } = (await req.json()) as { role: "parent" | "teen"; memberId?: string; messages: ModelMessage[] };
+  const session = requireRole(req);
+  if (!session) return Response.json({ error: "Sign in to chat" }, { status: 401 });
+  const { messages } = (await req.json()) as { messages: ModelMessage[] };
+  const role = session.role;
+  const memberId = session.memberId;
   const history = (messages || []).slice(-12);
   if (!geminiConfigured) {
     return Response.json({
