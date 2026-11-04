@@ -34,6 +34,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const rules = getRules();
   if (!(cents > 0)) return Response.json({ error: "Enter a payout amount" }, { status: 400 });
   if (cents > rules.max_payout_cents) return Response.json({ error: "Above the family max payout" }, { status: 400 });
+  if (cents > claim.amount_cents) return Response.json({ error: "Payout cannot exceed the amount requested in this claim" }, { status: 400 });
 
   const parent = getMember("parent");
   if (!parent) return Response.json({ error: "Parent account is missing" }, { status: 500 });
