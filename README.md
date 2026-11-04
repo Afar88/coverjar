@@ -117,4 +117,4 @@ The parent assistant uses Paraguas's direct PayPal API integration for read-only
 
 ### Dependency security
 
-Production dependencies are audited in CI with `npm audit --omit=dev --audit-level=low`. The check is a merge gate: any reported production advisory fails the workflow. The current verified production audit reports zero vulnerabilities.
+All dependencies, including development tooling, are audited in CI with `npm audit --audit-level=low`. The check is a merge gate: any reported advisory fails the workflow. The latest verified full audit reports zero vulnerabilities. Biome is used for JavaScript/TypeScript linting (`npm run lint`); the older ESLint toolchain was removed with its vulnerable transitive dependencies.
