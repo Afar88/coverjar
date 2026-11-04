@@ -88,6 +88,13 @@ export function getDb() {
       order_id TEXT PRIMARY KEY, member_id TEXT NOT NULL, amount_cents INTEGER NOT NULL,
       method TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS subscriptions (
+      subscription_id TEXT PRIMARY KEY, member_id TEXT NOT NULL, amount_cents INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'APPROVAL_PENDING', created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS paypal_webhook_events (
+      event_id TEXT PRIMARY KEY, event_type TEXT NOT NULL, processed_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
   const count = db.prepare("SELECT COUNT(*) AS n FROM members").get() as { n: number };
   if (count.n === 0) seed(db);
@@ -210,6 +217,44 @@ export function getClaims(memberId?: string): Claim[] {
 
 export function getClaim(id: number): Claim | undefined {
   return getDb().prepare("SELECT * FROM claims WHERE id = ?").get(id) as Claim | undefined;
+}
+
+/** Save the PayPal subscription-to-member mapping before the payer is redirected. */
+export function saveSubscription(subscriptionId: string, memberId: string, amountCents: number) {
+  getDb().prepare(
+    "INSERT INTO subscriptions (subscription_id, member_id, amount_cents, status) VALUES (?, ?, ?, 'APPROVAL_PENDING')",
+  ).run(subscriptionId, memberId, amountCents);
+}
+
+export function updateSubscriptionStatus(subscriptionId: string, status: string) {
+  getDb().prepare("UPDATE subscriptions SET status = ? WHERE subscription_id = ?").run(status, subscriptionId);
+}
+
+/** Idempotently credit one completed recurring PayPal charge and split it using the current jar rule. */
+export function recordSubscriptionPayment(input: {
+  eventId: string;
+  eventType: string;
+  subscriptionId: string;
+  saleId: string;
+  amountCents: number;
+}) {
+  const d = getDb();
+  const apply = d.transaction(() => {
+    const sub = d.prepare("SELECT member_id, amount_cents FROM subscriptions WHERE subscription_id = ?")
+      .get(input.subscriptionId) as { member_id: string; amount_cents: number } | undefined;
+    if (!sub) throw new Error("PayPal subscription is not linked to a Paraguas family member");
+    if (input.amountCents !== sub.amount_cents) throw new Error("PayPal subscription payment amount does not match the allowance");
+    const event = d.prepare("INSERT OR IGNORE INTO paypal_webhook_events (event_id, event_type) VALUES (?, ?)")
+      .run(input.eventId, input.eventType);
+    if (!event.changes) return { credited: false, duplicate: true };
+    const payment = d.prepare(
+      "INSERT OR IGNORE INTO payments (order_id, member_id, amount_cents, method, status) VALUES (?, ?, ?, 'subscription', 'COMPLETED')",
+    ).run(input.saleId, sub.member_id, input.amountCents);
+    if (!payment.changes) return { credited: false, duplicate: true };
+    creditAllowance(sub.member_id, input.amountCents, input.saleId, "Weekly allowance (PayPal subscription)");
+    return { credited: true, duplicate: false };
+  });
+  return apply();
 }
 
 /** Credit an allowance top-up, splitting it between spending money and the umbrella fund. */
