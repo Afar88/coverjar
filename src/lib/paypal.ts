@@ -128,38 +128,49 @@ export async function getOrderStatus(orderId: string) {
 
 export async function sendPayout(opts: { email: string; cents: number; note: string; itemId: string }) {
   if (!paypalConfigured) return { batchId: mockId("PAYOUT"), status: "SUCCESS (simulated)" };
-  const res = await paypalFetch<{ batch_header: { payout_batch_id: string; batch_status: string } }>(
-    "/v1/payments/payouts",
-    {
-      method: "POST",
-      body: {
-        sender_batch_header: {
-          sender_batch_id: `paraguas-${opts.itemId}`,
-          email_subject: "Paraguas claim payout",
-          email_message: opts.note,
-        },
-        items: [
-          {
-            recipient_type: "EMAIL",
-            amount: { value: dollars(opts.cents), currency: "USD" },
-            receiver: opts.email,
-            note: opts.note,
-            sender_item_id: opts.itemId,
-          },
-        ],
-      },
-      requestId: `payout-${opts.itemId}`,
+  const requestId = `payout-${opts.itemId}`;
+  const body = {
+    sender_batch_header: {
+      sender_batch_id: `paraguas-${opts.itemId}`,
+      email_subject: "Paraguas claim payout",
+      email_message: opts.note,
     },
-  );
-  const batchId = res.batch_header.payout_batch_id;
+    items: [{
+      recipient_type: "EMAIL",
+      amount: { value: dollars(opts.cents), currency: "USD" },
+      receiver: opts.email,
+      note: opts.note,
+      sender_item_id: opts.itemId,
+    }],
+  };
+  let res: { batch_header: { payout_batch_id: string; batch_status: string } };
+  try {
+    res = await paypalFetch("/v1/payments/payouts", { method: "POST", body, requestId });
+  } catch (firstError) {
+    // Re-submit with the same PayPal idempotency key: if the first response was lost,
+    // PayPal returns the original batch instead of creating a second payout.
+    try { res = await paypalFetch("/v1/payments/payouts", { method: "POST", body, requestId }); }
+    catch { throw firstError; }
+  }
+  const batchId = res.batch_header?.payout_batch_id;
+  if (!batchId) throw new Error("PayPal did not return a payout batch reference");
   let status = res.batch_header.batch_status;
   for (let i = 0; i < 6 && (status === "PENDING" || status === "PROCESSING"); i++) {
-    await new Promise((r) => setTimeout(r, 2000));
-    status = (await paypalFetch<{ batch_header: { batch_status: string } }>(`/v1/payments/payouts/${batchId}`)).batch_header.batch_status;
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    try { status = (await getPayoutStatus(batchId, opts.itemId)).batchStatus; }
+    catch { return { batchId, status: "UNKNOWN" }; }
   }
   return { batchId, status };
 }
 
+export async function getPayoutStatus(batchId: string, itemId: string) {
+  if (!paypalConfigured || batchId.startsWith("MOCK-")) return { batchStatus: "SUCCESS", itemStatus: "SUCCESS" };
+  const result = await paypalFetch<{ batch_header?: { batch_status?: string }; items?: { payout_item?: { sender_item_id?: string }; transaction_status?: string }[] }>(
+    `/v1/payments/payouts/${encodeURIComponent(batchId)}?page=1&page_size=100`,
+  );
+  const item = result.items?.find((entry) => entry.payout_item?.sender_item_id === itemId);
+  return { batchStatus: result.batch_header?.batch_status || "UNKNOWN", itemStatus: item?.transaction_status || "UNKNOWN" };
+}
 /** Sets up a weekly PayPal subscription that funds a teen's allowance. */
 export async function createAllowanceSubscription(opts: {
   teenName: string;
