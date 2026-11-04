@@ -138,7 +138,18 @@ export async function sendPayout(opts: { email: string; cents: number; note: str
       },
     },
   );
-  return { batchId: res.batch_header.payout_batch_id, status: res.batch_header.batch_status };
+  const batchId = res.batch_header.payout_batch_id;
+  let status = res.batch_header.batch_status;
+  for (let i = 0; i < 6 && (status === "PENDING" || status === "PROCESSING"); i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    status = (await paypalFetch<{ batch_header: { batch_status: string } }>(`/v1/payments/payouts/${batchId}`)).batch_header.batch_status;
+  }
+  if (status === "DENIED" || status === "CANCELED") {
+    throw new Error(
+      `PayPal ${status.toLowerCase()} the payout (batch ${batchId}). Check that your PayPal business account has funds and Payouts is enabled for the app.`,
+    );
+  }
+  return { batchId, status };
 }
 
 /** Sets up a weekly PayPal subscription that funds a teen's allowance. */
