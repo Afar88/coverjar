@@ -9,7 +9,7 @@ export async function POST(req:Request) {
   let body:{orderId?:string};try{body=await req.json();}catch{return Response.json({error:"Invalid request body"},{status:400});}
   const orderId=typeof body.orderId==="string"?body.orderId.trim():"";
   if(!orderId||orderId.length>128)return Response.json({error:"A valid orderId is required"},{status:400});
-  const [payment]=await queryRows<StoredPayment>("SELECT order_id,member_id,status FROM payments WHERE order_id=$1",[orderId]);
+  const [payment]=await queryRows<StoredPayment>("SELECT p.order_id,p.member_id,p.status FROM payments p JOIN members m ON m.id=p.member_id WHERE p.order_id=$1 AND m.role='teen'",[orderId]);
   if(!payment)return Response.json({error:"Unknown payment order"},{status:404});
   if(payment.status==="COMPLETED")return Response.json({alreadySettled:true,payment});
   try {
