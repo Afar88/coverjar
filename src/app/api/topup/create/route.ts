@@ -1,12 +1,18 @@
 import { getDb, getMember, getStreakStatus, reserveStreakBonus } from "@/lib/db";
 import { toCents } from "@/lib/money";
-import { createOrder } from "@/lib/paypal";
+import { createOrder, cryptoEnabled } from "@/lib/paypal";
 import { requireRole } from "@/lib/auth";
 
 export async function POST(req: Request) {
   const session = requireRole(req, "parent");
   if (!session) return Response.json({ error: "Parent access required" }, { status: 403 });
-  const { memberId, amount, method } = await req.json();
+  let body: { memberId?: unknown; amount?: unknown; method?: unknown };
+  try { body = await req.json(); } catch { return Response.json({ error: "Invalid request body" }, { status: 400 }); }
+  const memberId = typeof body.memberId === "string" ? body.memberId : "";
+  const amount = body.amount;
+  const method = body.method;
+  if (method !== undefined && method !== "paypal" && method !== "crypto" && method !== "streak_bonus") return Response.json({ error: "Unsupported payment method" }, { status: 400 });
+  if (method === "crypto" && !cryptoEnabled) return Response.json({ error: "PayPal crypto payments are not enabled for this app" }, { status: 403 });
   const teen = getMember(memberId);
   let cents = toCents(amount);
   if (!teen || teen.role !== "teen") return Response.json({ error: "Unknown teen" }, { status: 400 });
