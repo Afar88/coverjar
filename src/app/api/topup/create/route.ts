@@ -1,5 +1,4 @@
 import { getMember, getStreakStatus, reserveStreakBonus, withTransaction } from "@/lib/db";
-import { queryRows } from "@/lib/db";
 import { toCents } from "@/lib/money";
 import { createOrder, cryptoEnabled } from "@/lib/paypal";
 import { requireRole } from "@/lib/auth";
