@@ -87,31 +87,43 @@ export async function createOrder(opts: {
   return { id: order.id, status: order.status, approveUrl };
 }
 
+type CaptureDetails = { id: string; status: string; amount?: { value: string; currency_code: string } };
 type OrderDetails = {
   id: string;
   status: string;
-  purchase_units?: { payments?: { captures?: { id: string; status: string; amount: { value: string } }[] } }[];
+  purchase_units?: { payments?: { captures?: CaptureDetails[] } }[];
 };
 
 function firstCapture(o: OrderDetails) {
   return o.purchase_units?.[0]?.payments?.captures?.[0];
 }
 
+function captureResult(o: OrderDetails) {
+  const cap = firstCapture(o);
+  return {
+    status: cap?.status || o.status,
+    captureId: cap?.id || o.id,
+    amount: cap?.amount ? { value: cap.amount.value, currencyCode: cap.amount.currency_code } : null,
+  };
+}
+
 export async function captureOrder(orderId: string) {
-  if (!paypalConfigured || orderId.startsWith("MOCK-")) return { status: "COMPLETED", captureId: mockId("CAPTURE") };
+  if (!paypalConfigured || orderId.startsWith("MOCK-")) {
+    return { status: "COMPLETED", captureId: mockId("CAPTURE"), amount: null };
+  }
   const o = await paypalFetch<OrderDetails>(`/v2/checkout/orders/${orderId}/capture`, {
     method: "POST",
     requestId: `capture-${orderId}`,
   });
-  const cap = firstCapture(o);
-  return { status: cap?.status || o.status, captureId: cap?.id || orderId };
+  return captureResult(o);
 }
 
 export async function getOrderStatus(orderId: string) {
-  if (!paypalConfigured || orderId.startsWith("MOCK-")) return { status: "COMPLETED", captureId: mockId("CAPTURE") };
+  if (!paypalConfigured || orderId.startsWith("MOCK-")) {
+    return { status: "COMPLETED", captureId: mockId("CAPTURE"), amount: null };
+  }
   const o = await paypalFetch<OrderDetails>(`/v2/checkout/orders/${orderId}`);
-  const cap = firstCapture(o);
-  return { status: cap?.status || o.status, captureId: cap?.id || orderId };
+  return captureResult(o);
 }
 
 export async function sendPayout(opts: { email: string; cents: number; note: string; itemId: string }) {
