@@ -1,4 +1,4 @@
-import { getMember } from "@/lib/db";
+import { getMember, saveSubscription } from "@/lib/db";
 import { createAllowanceSubscription } from "@/lib/paypal";
 
 export async function POST(req: Request) {
@@ -13,6 +13,7 @@ export async function POST(req: Request) {
       returnUrl: `${origin}/api/subscribe/return?member=${teen.id}`,
       cancelUrl: `${origin}/?subscribe=cancelled`,
     });
+    saveSubscription(sub.id, teen.id, teen.allowance_cents);
     return Response.json(sub);
   } catch (e) {
     return Response.json({ error: (e as Error).message }, { status: 502 });
