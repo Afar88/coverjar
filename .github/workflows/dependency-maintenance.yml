@@ -46,9 +46,11 @@ jobs:
           PAYPAL_CLIENT_ID: ""
           PAYPAL_CLIENT_SECRET: ""
           PAYPAL_ENVIRONMENT: SANDBOX
-      - name: Save dependency audit report
+      - name: Require a clean full dependency audit
+        run: npm audit --audit-level=low
+      - name: Save full dependency audit report
         if: always()
-        run: npm audit --omit=dev --json > npm-audit-report.json || true
+        run: npm audit --json > npm-audit-report.json || true
       - name: Upload audit report
         if: always()
         uses: actions/upload-artifact@v4
