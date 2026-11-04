@@ -348,6 +348,7 @@ function RulesCard({ state, onDone, onError }: { state: AppState } & Handlers) {
   const r = state.rules;
   const [form, setForm] = useState({
     jar_percent: String(r.jar_percent),
+    streak_bonus_percent: String(r.streak_bonus_percent),
     deductible: (r.deductible_cents / 100).toFixed(2),
     max_payout: (r.max_payout_cents / 100).toFixed(2),
     covered: r.covered.join("\n"),
@@ -370,7 +371,7 @@ function RulesCard({ state, onDone, onError }: { state: AppState } & Handlers) {
   }
   return (
     <Card title="Family rules">
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <label className="text-xs text-slate-500">
           Umbrella %<input className={inputCls} value={form.jar_percent} onChange={set("jar_percent")} />
         </label>
