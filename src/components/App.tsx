@@ -118,7 +118,7 @@ export default function App() {
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight"><span aria-hidden>☂️ </span>Para<span className="text-emerald-600">guas</span></h1>
-          <p className="text-sm text-slate-500"><em>Paraguas</em> is Spanish for <strong>&ldquo;umbrella&rdquo;</strong>. Gemini reviews claims, parents approve, PayPal pays.</p>
+          <p className="text-sm text-slate-500"><em>Paraguas</em> is Spanish for <strong>&ldquo;umbrella&rdquo;</strong>. AI assists with claims, parents decide, PayPal pays.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={state.config.paypal === "sandbox" ? "blue" : "amber"}>PayPal: {state.config.paypal}</Badge>
@@ -270,10 +270,10 @@ function AiPanel({ claim }: { claim: Claim }) {
   return (
     <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4 text-sm">
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <span className="font-semibold text-emerald-900">✦ Gemini review</span>
+        <span className="font-semibold text-emerald-900">{ai.model === "offline-demo" ? "✦ Demo assessment" : "✦ Gemini review"}</span>
         <Badge tone={ai.covered ? "green" : "rose"}>{ai.covered ? "Covered" : "Not covered"}</Badge>
         <Badge>{ai.category}</Badge>
-        <Badge tone="blue">{Math.round(ai.confidence * 100)}% confident</Badge>
+        <Badge tone={ai.model === "offline-demo" ? "amber" : "blue"}>{ai.model === "offline-demo" ? "Heuristic estimate" : Math.round(ai.confidence * 100) + "% confident"}</Badge>
         <span className="text-xs text-slate-500">{ai.model}</span>
       </div>
       <p className="mb-2 text-slate-800">{ai.parent_summary}</p>
@@ -473,7 +473,7 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
     try {
       await api("/api/claims", fd, true);
       formEl.reset();
-      onDone("Claim sent! Gemini reviewed it and it's now with your parent.");
+      onDone("Claim sent! It has been reviewed and is now with your parent.");
     } catch (err) {
       onError((err as Error).message);
     } finally {
