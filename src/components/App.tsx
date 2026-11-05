@@ -7,6 +7,7 @@ import { api, Badge, Button, Card, fmt, inputCls } from "./ui";
 import { TopUp } from "./PayPalButton";
 import { Chat } from "./Chat";
 import { LedgerGrid } from "./LedgerGrid";
+import { ClaimsGrid } from "./ClaimsGrid";
 
 const RETURN_MESSAGES: Record<string, string> = {
   "topup=crypto-ok": "Crypto (PYUSD) payment completed and credited.",
@@ -197,23 +198,22 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
           )}
         </Card>
         {decided.length > 0 && (
-          <Card title="Decided claims">
-            <div className="space-y-2">
-              {decided.map((c) => (
-                <div key={c.id} className="rounded-xl border border-slate-200 p-3 text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <strong>{names[c.member_id]}: {c.title}</strong>
-                    {c.status === "paid" ? <Badge tone="green">Paid {fmt(c.payout_cents || 0)}</Badge> : c.status === "payout_pending" ? <Badge tone="amber">Payout processing</Badge> : c.status === "payout_failed" ? <Badge tone="rose">Payout failed</Badge> : <Badge tone="rose">Declined</Badge>}
+          <Card title={`Claim history (${decided.length})`}>
+            <ClaimsGrid claims={decided} names={names} />
+            {decided.some((claim) => claim.status === "payout_pending") && (
+              <div className="mt-4 space-y-2">
+                <p className="text-xs font-medium text-slate-600">Payouts still being checked</p>
+                {decided.filter((claim) => claim.status === "payout_pending").map((claim) => (
+                  <div key={claim.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm">
+                    <div className="min-w-0">
+                      <strong>{names[claim.member_id]} · {claim.title}</strong>
+                      <p className="text-xs text-slate-600">Funds remain reserved while PayPal confirms the transfer.</p>
+                    </div>
+                    <Button variant="secondary" onClick={() => reconcileClaim(claim.id)}>Check PayPal status</Button>
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">Requested {fmt(c.amount_cents)} · Submitted {new Date(c.created_at.replace(" ", "T") + "Z").toLocaleString()}</p>
-                  {c.ai && <div className="mt-2"><AiPanel claim={c} /></div>}
-                  {c.payout_cents !== null && <p className="mt-2">Approved amount: <strong>{fmt(c.payout_cents)}</strong></p>}
-                  {c.parent_note && <p className="mt-2 rounded-lg bg-slate-50 p-2 text-slate-700">Parent note: {c.parent_note}</p>}
-                  {c.paypal_ref && <p className="mt-1 break-all font-mono text-xs text-slate-500">PayPal reference: {c.paypal_ref}</p>}
-                  {c.status === "payout_pending" && <div className="mt-3"><Button variant="secondary" onClick={() => reconcileClaim(c.id)}>Check PayPal payout status</Button><p className="mt-1 text-xs text-slate-500">This checks the existing transfer; it does not send another payment.</p></div>}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </Card>
         )}
         <Ledger state={state} />
