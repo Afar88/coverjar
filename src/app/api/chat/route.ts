@@ -50,14 +50,15 @@ export async function POST(req:Request) {
     };
   }
   let timeout: ReturnType<typeof setTimeout> | undefined;
+  const controller = new AbortController();
   try {
     const response = await Promise.race([
       withGemini(model => generateText({
         model, system, messages: history, tools,
-        stopWhen: stepCountIs(4), maxRetries: 0,
+        stopWhen: stepCountIs(4), maxRetries: 0, abortSignal: controller.signal,
       })),
       new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => reject(new Error("The assistant took too long to respond. Please try again in a moment.")), 22000);
+        timeout = setTimeout(() => { controller.abort(); reject(new Error("The assistant took too long to respond. Please try again in a moment.")); }, 22000);
       }),
     ]);
     const used=response.result.steps.flatMap(s=>s.toolCalls.map(c=>c.toolName));
