@@ -5,11 +5,24 @@ import { geminiConfigured, withGemini } from "@/lib/gemini";
 import { getPaypalSubscription, listPaypalTransactions } from "@/lib/paypal";
 import { requireRole } from "@/lib/auth";
 
+export const maxDuration = 30;
+
 export async function POST(req:Request) {
   const session=requireRole(req);
   if(!session)return Response.json({error:"Sign in to chat"},{status:401});
-  const {messages}=(await req.json()) as {messages:ModelMessage[]};
-  const role=session.role; const memberId=session.memberId; const history=(messages||[]).slice(-12);
+  let body: { messages?: unknown };
+  try { body = await req.json(); } catch {
+    return Response.json({ error: "The message could not be read. Please try again." }, { status: 400 });
+  }
+  if (!Array.isArray(body.messages) || body.messages.length === 0 || body.messages.length > 30) {
+    return Response.json({ error: "Send a message before asking the assistant." }, { status: 400 });
+  }
+  const history = body.messages.slice(-12) as ModelMessage[];
+  if (history.some((message) => !message || !["user", "assistant"].includes(message.role) ||
+    !Array.isArray(message.content) && typeof message.content !== "string")) {
+    return Response.json({ error: "The conversation format is invalid. Please start a new message." }, { status: 400 });
+  }
+  const role=session.role; const memberId=session.memberId;
   if(!geminiConfigured)return Response.json({text:"I'm running in offline demo mode (no GEMINI_API_KEY set), so I can't chat yet. Add a Gemini key to turn me on.",tools:[]});
   let system:string; let tools:Record<string,Tool>={};
   if(role==="teen") {
@@ -36,9 +49,27 @@ export async function POST(req:Request) {
       paypal_subscription_status:tool({description:"Look up the status and next billing date of a PayPal subscription using its subscription ID",inputSchema:z.object({subscription_id:z.string().min(5).max(128)}),execute:async({subscription_id})=>getPaypalSubscription(subscription_id)}),
     };
   }
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
-    const {result}=await withGemini(model=>generateText({model,system,messages:history,tools,stopWhen:stepCountIs(6),maxRetries:1}));
-    const used=result.steps.flatMap(s=>s.toolCalls.map(c=>c.toolName));
-    return Response.json({text:result.text,tools:[...new Set(used)]});
-  } catch(e) { return Response.json({error:(e as Error).message},{status:502}); }
+    const response = await Promise.race([
+      withGemini(model => generateText({
+        model, system, messages: history, tools,
+        stopWhen: stepCountIs(4), maxRetries: 0,
+      })),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("The assistant took too long to respond. Please try again in a moment.")), 22000);
+      }),
+    ]);
+    const used=response.result.steps.flatMap(s=>s.toolCalls.map(c=>c.toolName));
+    if (!response.result.text?.trim()) {
+      return Response.json({ error: "The assistant returned an empty reply. Please try again." }, { status: 502 });
+    }
+    return Response.json({text:response.result.text,tools:[...new Set(used)]}, { headers: { "Cache-Control": "no-store" } });
+  } catch(e) {
+    const message = e instanceof Error ? e.message : "The assistant is temporarily unavailable.";
+    console.error("Paraguas chat request failed:", message);
+    return Response.json({error:message},{status:504,headers:{"Cache-Control":"no-store"}});
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
