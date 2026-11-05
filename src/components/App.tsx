@@ -61,6 +61,22 @@ export default function App() {
     return () => { alive = false; };
   }, [notify]);
 
+  // Keep an already-open teen dashboard in sync when a parent changes allowance.
+  useEffect(() => {
+    if (!session) return;
+    let active = true;
+    const sync = async () => {
+      try {
+        const next = await api<AppState>("/api/state");
+        if (active) setState(next);
+      } catch {
+        // A temporary network error should not blank the current dashboard.
+      }
+    };
+    const interval = window.setInterval(sync, 15000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [session]);
+
   async function signIn(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -88,7 +104,6 @@ export default function App() {
         body: "{}",
       });
       if (!response.ok) throw new Error(`Logout failed (${response.status})`);
-      // Reload from the server so the cleared HttpOnly cookie is checked afresh.
       window.location.replace("/");
     } catch (error) {
       notify((error as Error).message || "Couldn't log out. Please try again.", true);
@@ -101,7 +116,7 @@ export default function App() {
       <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5 py-10">
         <div className="mb-7 text-center">
           <h1 className="text-3xl font-bold tracking-tight"><span aria-hidden>☂️ </span>Para<span className="text-emerald-600">guas</span></h1>
-          <p className="mt-2 text-sm text-slate-500">Your family&apos;s allowance and protection fund.</p>
+          <p className="mt-2 text-sm text-slate-500">Your family's allowance and protection fund.</p>
         </div>
         <form onSubmit={signIn} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex rounded-xl bg-slate-100 p-1">
@@ -197,18 +212,13 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
                 </div>
               ))}
             </div>
-          </Card>
-        )}
-        <Ledger state={state} />
+          )}
+        </Card>
+        {decided.length > 0 && <Ledger state={state} />}
       </div>
       <div className="space-y-6">
         <RulesCard state={state} onDone={onDone} onError={onError} />
-        <Chat
-          persona="parent"
-          title="Family assistant"
-          intro="I can look up PayPal transactions, subscriptions and invoices, summarise claims, and adjust the umbrella rules for you."
-          suggestions={["How are the umbrella funds doing?", "Show recent PayPal transactions", "Raise the umbrella share to 25%"]}
-        />
+        <Chat persona="parent" title="Family assistant" intro="I can look up PayPal transactions, subscriptions and invoices, summarise claims, and adjust the umbrella rules for you." suggestions={["How are the umbrella funds doing?", "Show recent PayPal transactions", "Raise the umbrella share to 25%"]} />
       </div>
     </div>
   );
@@ -219,6 +229,7 @@ function TeenFundingCard({ teen, state, onDone, onError }: { teen: Member; state
   const [topUpAmount, setTopUpAmount] = useState("10.00");
   const [busy, setBusy] = useState(false);
   const [savingAllowance, setSavingAllowance] = useState(false);
+  useEffect(() => setAmount((teen.allowance_cents / 100).toFixed(2)), [teen.allowance_cents]);
   const b = teen.balances!;
   async function saveAllowance() {
     setSavingAllowance(true);
@@ -236,8 +247,6 @@ function TeenFundingCard({ teen, state, onDone, onError }: { teen: Member; state
     try {
       const r = await api<{ id: string; approveUrl: string | null }>("/api/subscribe", { memberId: teen.id });
       if (r.approveUrl) window.location.href = r.approveUrl;
-      // Simulated mode: hit the API return route directly, which redirects back with a status.
-      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       else window.location.href = `/api/subscribe/return?member=${teen.id}&subscription_id=${r.id}`;
     } catch (e) {
       onError((e as Error).message);
@@ -247,26 +256,15 @@ function TeenFundingCard({ teen, state, onDone, onError }: { teen: Member; state
   return (
     <Card title={`${teen.emoji} ${teen.name}${teen.age ? `, ${teen.age}` : ""}`} right={<Badge>{fmt(teen.allowance_cents)}/week</Badge>}>
       <div className="mb-4 grid grid-cols-2 gap-3">
-        <div className="rounded-xl bg-slate-50 p-3">
-          <div className="text-xs text-slate-500">Spending money</div>
-          <div className="text-xl font-semibold">{fmt(b.spend)}</div>
-        </div>
-        <div className="rounded-xl bg-emerald-50 p-3">
-          <div className="text-xs text-emerald-700">Umbrella fund</div>
-          <div className="text-xl font-semibold text-emerald-800">{fmt(b.jar)}</div>
-        </div>
+        <div className="rounded-xl bg-slate-50 p-3"><div className="text-xs text-slate-500">Spending money</div><div className="text-xl font-semibold">{fmt(b.spend)}</div></div>
+        <div className="rounded-xl bg-emerald-50 p-3"><div className="text-xs text-emerald-700">Umbrella fund</div><div className="text-xl font-semibold text-emerald-800">{fmt(b.jar)}</div></div>
       </div>
       <div className="mb-4 rounded-xl border border-slate-200 p-3">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <strong className="text-sm text-slate-800">Weekly allowance</strong>
-          <Badge tone="green">Saved: {fmt(teen.allowance_cents)}/week</Badge>
-        </div>
+        <div className="mb-2 flex items-center justify-between gap-2"><strong className="text-sm text-slate-800">Weekly allowance</strong><Badge tone="green">Saved: {fmt(teen.allowance_cents)}/week</Badge></div>
         <label className="mb-1 block text-xs font-medium text-slate-600">Set weekly amount ($)</label>
         <input className={`${inputCls} mb-2`} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" aria-label={`Weekly allowance for ${teen.name}`} />
         <p className="mb-3 text-xs text-slate-500">This changes the saved weekly allowance only. No payment is taken. {state.rules.jar_percent}% is allocated to the umbrella fund when allowance is paid.</p>
-        <Button onClick={saveAllowance} disabled={savingAllowance || !/^\d+(?:\.\d{1,2})?$/.test(amount) || Number(amount) < 1 || Number(amount) > 500}>
-          {savingAllowance ? "Saving…" : "Save weekly allowance"}
-        </Button>
+        <Button onClick={saveAllowance} disabled={savingAllowance || !/^\d+(?:\.\d{1,2})?$/.test(amount) || Number(amount) < 1 || Number(amount) > 500}>{savingAllowance ? "Saving…" : "Save weekly allowance"}</Button>
       </div>
       <div className="rounded-xl bg-slate-50 p-3">
         <strong className="text-sm text-slate-800">Make a one-time top-up</strong>
@@ -275,359 +273,8 @@ function TeenFundingCard({ teen, state, onDone, onError }: { teen: Member; state
         <input className={`${inputCls} mb-3`} value={topUpAmount} onChange={(e) => setTopUpAmount(e.target.value)} inputMode="decimal" aria-label={`One-time top-up for ${teen.name}`} />
         <TopUp memberId={teen.id} amount={topUpAmount} clientId={state.config.paypalClientId} cryptoEnabled={state.config.cryptoEnabled} onDone={onDone} onError={onError} />
       </div>
-      {teen.streak && (
-        <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3">
-          <div className="flex items-center justify-between gap-2">
-            <strong className="text-sm text-emerald-900">Saving streak</strong>
-            <Badge tone={teen.streak.eligible ? "green" : "slate"}>{Math.min(teen.streak.weeks, 4)}/4 weeks</Badge>
-          </div>
-          {teen.streak.eligible ? (
-            <>
-              <p className="mt-1 text-xs text-emerald-800">Great consistency. Fund a ${(teen.streak.bonusCents / 100).toFixed(2)} parent match directly into {teen.name}&apos;s umbrella fund.</p>
-              <div className="mt-2">
-                <TopUp purpose="streak_bonus" memberId={teen.id} amount={(teen.streak.bonusCents / 100).toFixed(2)} clientId={state.config.paypalClientId} cryptoEnabled={false} onDone={onDone} onError={onError} />
-              </div>
-            </>
-          ) : teen.streak.alreadyMatched ? (
-            <p className="mt-1 text-xs text-emerald-800">A match payment is pending or this streak has already been matched.</p>
-          ) : (
-            <p className="mt-1 text-xs text-slate-600">Four consecutive weeks of allowance savings unlock a parent-funded match.</p>
-          )}
-        </div>
-      )}
-      <div className="mt-3">
-        <Button variant="ghost" onClick={subscribe} disabled={busy}>
-          ↻ Automate weekly allowance with PayPal Subscriptions
-        </Button>
-      </div>
+      {teen.streak && <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3"><div className="flex items-center justify-between gap-2"><strong className="text-sm text-emerald-900">Saving streak</strong><Badge tone={teen.streak.eligible ? "green" : "slate"}>{Math.min(teen.streak.weeks, 4)}/4 weeks</Badge></div>{teen.streak.eligible ? <><p className="mt-1 text-xs text-emerald-800">Great consistency. Fund a ${(teen.streak.bonusCents / 100).toFixed(2)} parent match directly into {teen.name}&apos;s umbrella fund.</p><div className="mt-2"><TopUp purpose="streak_bonus" memberId={teen.id} amount={(teen.streak.bonusCents / 100).toFixed(2)} clientId={state.config.paypalClientId} cryptoEnabled={false} onDone={onDone} onError={onError} /></div></> : teen.streak.alreadyMatched ? <p className="mt-1 text-xs text-emerald-800">A match payment is pending or this streak has already been matched.</p> : <p className="mt-1 text-xs text-slate-600">Four consecutive weeks of allowance savings unlock a parent-funded match.</p>}</div>}
+      <div className="mt-3"><Button variant="ghost" onClick={subscribe} disabled={busy}>↻ Automate weekly allowance with PayPal Subscriptions</Button></div>
     </Card>
-  );
-}
-
-function AiPanel({ claim }: { claim: Claim }) {
-  const ai = claim.ai;
-  if (!ai) return null;
-  return (
-    <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4 text-sm">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <span className="font-semibold text-emerald-900">{ai.model === "offline-demo" ? "✦ Demo assessment" : "✦ Gemini review"}</span>
-        <Badge tone={ai.covered ? "green" : "rose"}>{ai.covered ? "Covered" : "Not covered"}</Badge>
-        <Badge>{ai.category}</Badge>
-        <Badge tone={ai.model === "offline-demo" ? "amber" : "blue"}>{ai.model === "offline-demo" ? "Heuristic estimate" : Math.round(ai.confidence * 100) + "% confident"}</Badge>
-        <span className="text-xs text-slate-500">{ai.model}</span>
-      </div>
-      <p className="mb-2 text-slate-800">{ai.parent_summary}</p>
-      <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">AI is advisory only. Check the photo and family rules before making the final decision.</p>
-      <div className="mb-2 flex flex-wrap gap-2">
-        <Badge tone={ai.model === "offline-demo" ? "amber" : ai.photo_matches_description ? "green" : "rose"}>{ai.model === "offline-demo" ? "Photo not analysed" : ai.photo_matches_description ? "Photo matches description" : "Photo mismatch flagged"}</Badge>
-        <Badge tone={ai.risk_flags.length ? "amber" : "green"}>{ai.risk_flags.length ? `${ai.risk_flags.length} risk flag(s)` : "No risk flags"}</Badge>
-      </div>
-      <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
-        <dt className="text-slate-500">Photo shows</dt>
-        <dd>{ai.damage_observed}</dd>
-        <dt className="text-slate-500">Rule</dt>
-        <dd>{ai.coverage_reason}</dd>
-        <dt className="text-slate-500">Typical repair</dt>
-        <dd>{fmt(ai.estimated_repair_cents)}</dd>
-        <dt className="text-slate-500">Recommended payout</dt>
-        <dd className="font-semibold">
-          {fmt(ai.final_payout_cents)}
-          {ai.caps_applied.length > 0 && <span className="font-normal text-slate-500"> (capped: {ai.caps_applied.join(", ")})</span>}
-        </dd>
-      </dl>
-      {ai.risk_flags.length > 0 && (
-        <ul className="mt-2 list-inside list-disc text-amber-800">
-          {ai.risk_flags.map((f) => (
-            <li key={f}>{f}</li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function ParentClaim({ claim, teenName, state, onDone, onError }: { claim: Claim; teenName: string; state: AppState } & Handlers) {
-  const [amount, setAmount] = useState(((claim.ai?.final_payout_cents ?? 0) / 100).toFixed(2));
-  const [payee, setPayee] = useState(claim.ai?.payee ?? "repair_shop");
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-  async function decide(decision: "approve" | "deny") {
-    setBusy(true);
-    try {
-      const r = await api<Claim & { payoutStatus?: string }>("/api/claims/" + claim.id + "/decide", { decision, amount, payee, note });
-      onDone(decision === "approve" ? (r.status === "paid" ? `Paid ${amount} via PayPal Payouts (${r.paypal_ref}).` : `Claim approved; PayPal payout status: ${r.payoutStatus || "pending"}.`) : "Claim declined.");
-    } catch (e) {
-      onError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <div className="rounded-xl border border-slate-200 p-4">
-      <div className="mb-3 flex flex-wrap gap-4">
-        {claim.photo_file && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={`/api/photos/${claim.id}`} alt="Damage" className="h-28 w-28 rounded-lg object-cover" />
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="font-semibold">
-            {teenName}: {claim.title}
-          </div>
-          <p className="text-sm text-slate-600">{claim.description}</p>
-          <p className="mt-1 text-sm">
-            Asked for <strong>{fmt(claim.amount_cents)}</strong>
-          </p>
-        </div>
-      </div>
-      <AiPanel claim={claim} />
-      <div className="mt-3 flex flex-wrap items-end gap-2">
-        <div>
-          <label className="block text-xs text-slate-500">Payout ($)</label>
-          <input className={`${inputCls} w-28`} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" />
-        </div>
-        <div>
-          <label className="block text-xs text-slate-500">Pay to</label>
-          <select className={inputCls} value={payee} onChange={(e) => setPayee(e.target.value as "repair_shop" | "parent")}>
-            <option value="repair_shop">Repair shop ({state.rules.repair_shop_email})</option>
-            <option value="parent">Me, for a replacement</option>
-          </select>
-        </div>
-        <div className="w-full">
-          <label className="block text-xs text-slate-500">Note for the family (optional)</label>
-          <input className={`${inputCls} mt-1`} value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="Explain your decision or add a repair instruction" />
-        </div>
-        <Button onClick={() => decide("approve")} disabled={busy}>Approve & pay with PayPal</Button>
-        <Button variant="danger" onClick={() => decide("deny")} disabled={busy}>Decline</Button>
-      </div>
-    </div>
-  );
-}
-
-function RulesCard({ state, onDone, onError }: { state: AppState } & Handlers) {
-  const r = state.rules;
-  const [form, setForm] = useState({
-    jar_percent: String(r.jar_percent),
-    streak_bonus_percent: String(r.streak_bonus_percent),
-    deductible: (r.deductible_cents / 100).toFixed(2),
-    max_payout: (r.max_payout_cents / 100).toFixed(2),
-    covered: r.covered.join("\n"),
-    excluded: r.excluded.join("\n"),
-  });
-  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
-  async function save() {
-    try {
-      await api("/api/rules", {
-        jar_percent: form.jar_percent,
-        streak_bonus_percent: form.streak_bonus_percent,
-        deductible: form.deductible,
-        max_payout: form.max_payout,
-        covered: form.covered.split("\n").map((s) => s.trim()).filter(Boolean),
-        excluded: form.excluded.split("\n").map((s) => s.trim()).filter(Boolean),
-      });
-      onDone("Family rules saved.");
-    } catch (e) {
-      onError((e as Error).message);
-    }
-  }
-  return (
-    <Card title="Family rules">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <label className="text-xs text-slate-500">
-          Umbrella %<input className={inputCls} value={form.jar_percent} onChange={set("jar_percent")} />
-        </label>
-        <label className="text-xs text-slate-500">
-          Deductible $<input className={inputCls} value={form.deductible} onChange={set("deductible")} />
-        </label>
-        <label className="text-xs text-slate-500">
-          Max payout $<input className={inputCls} value={form.max_payout} onChange={set("max_payout")} />
-        </label>
-        <label className="text-xs text-slate-500">
-          Streak match %<input className={inputCls} value={form.streak_bonus_percent} onChange={set("streak_bonus_percent")} inputMode="numeric" />
-        </label>
-      </div>
-      <label className="mt-3 block text-xs text-slate-500">
-        Covered (one per line)
-        <textarea className={`${inputCls} h-24`} value={form.covered} onChange={set("covered")} />
-      </label>
-      <label className="mt-2 block text-xs text-slate-500">
-        Not covered
-        <textarea className={`${inputCls} h-24`} value={form.excluded} onChange={set("excluded")} />
-      </label>
-      <div className="mt-3">
-        <Button variant="secondary" onClick={save}>Save rules</Button>
-      </div>
-    </Card>
-  );
-}
-
-function Ledger({ state, memberId }: { state: AppState; memberId?: string }) {
-  const names = Object.fromEntries(state.members.map((m) => [m.id, m.name]));
-  const rows = state.ledger.filter((l) => !memberId || l.member_id === memberId).slice(0, 25);
-  return (
-    <Card title="Activity">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs text-slate-500">
-            <tr>
-              <th className="pb-2">When</th>
-              {!memberId && <th className="pb-2">Who</th>}
-              <th className="pb-2">What</th>
-              <th className="pb-2">Bucket</th>
-              <th className="pb-2 text-right">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((l) => (
-              <tr key={l.id} className="border-t border-slate-100">
-                <td className="py-1.5 text-slate-500">{l.created_at.slice(0, 10)}</td>
-                {!memberId && <td>{names[l.member_id]}</td>}
-                <td>
-                  {l.memo}
-                  {l.paypal_ref && l.paypal_ref !== "SEED" && <span className="ml-1 font-mono text-xs text-slate-400">{l.paypal_ref}</span>}
-                </td>
-                <td>
-                  <Badge tone={l.bucket === "jar" ? "green" : "slate"}>{l.bucket === "jar" ? "umbrella" : "spending"}</Badge>
-                </td>
-                <td className={`text-right font-medium ${l.amount_cents < 0 ? "text-rose-700" : "text-emerald-700"}`}>{fmt(l.amount_cents)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Card>
-  );
-}
-
-function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppState } & Handlers) {
-  const b = teen.balances!;
-  const claims = state.claims.filter((c) => c.member_id === teen.id);
-  const [busy, setBusy] = useState(false);
-  const [buy, setBuy] = useState({ amount: "", memo: "" });
-
-  async function fileClaim(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const formEl = e.currentTarget;
-    const fd = new FormData(formEl);
-    const photo = fd.get("photo");
-    if (!(photo instanceof File) || photo.size === 0) {
-      onError("Choose a claim photo first.");
-      return;
-    }
-    if (photo.size > 8 * 1024 * 1024) {
-      onError("Photo must be under 8 MB.");
-      return;
-    }
-    const extension = photo.type === "image/jpeg" ? ".jpg" : photo.type === "image/png" ? ".png" : photo.type === "image/webp" ? ".webp" : "";
-    if (!extension) {
-      onError("Use a JPEG, PNG or WebP photo.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const blob = await upload(`claims/${teen.id}/${crypto.randomUUID()}${extension}`, photo, {
-        access: "private",
-        handleUploadUrl: "/api/claim-photo/upload",
-        clientPayload: teen.id,
-      });
-      fd.delete("photo");
-      fd.set("photoPath", blob.pathname);
-      await api("/api/claims", fd, true);
-      formEl.reset();
-      onDone("Claim sent! It has been reviewed and is now with your parent.");
-    } catch (err) {
-      onError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function logPurchase() {
-    try {
-      await api("/api/purchase", { memberId: teen.id, ...buy });
-      setBuy({ amount: "", memo: "" });
-      onDone("Purchase logged.");
-    } catch (err) {
-      onError((err as Error).message);
-    }
-  }
-
-  return (
-    <div className="grid gap-6 lg:grid-cols-3">
-      <div className="space-y-6 lg:col-span-2">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl bg-slate-900 p-5 text-white">
-            <div className="text-sm text-slate-300">Spending money</div>
-            <div className="text-3xl font-bold">{fmt(b.spend)}</div>
-            <div className="mt-3 flex gap-2">
-              <input className="w-16 min-w-0 rounded-lg bg-slate-800 px-2 py-1 text-sm" placeholder="$" value={buy.amount} onChange={(e) => setBuy({ ...buy, amount: e.target.value })} />
-              <input className="min-w-0 flex-1 rounded-lg bg-slate-800 px-2 py-1 text-sm" placeholder="What did you buy?" value={buy.memo} onChange={(e) => setBuy({ ...buy, memo: e.target.value })} />
-              <button onClick={logPurchase} className="shrink-0 rounded-lg bg-white px-3 text-sm font-medium text-slate-900">Log</button>
-            </div>
-          </div>
-          <div className="rounded-2xl bg-emerald-600 p-5 text-white">
-            <div className="text-sm text-emerald-100">☂️ Umbrella fund</div>
-            <div className="text-3xl font-bold">{fmt(b.jar)}</div>
-            <p className="mt-3 text-sm text-emerald-50">
-              {state.rules.jar_percent}% of every allowance lands here. It covers accidents up to {fmt(state.rules.max_payout_cents)} (you pay the first {fmt(state.rules.deductible_cents)}).
-            </p>
-          </div>
-          {teen.streak && (
-            <div className="rounded-2xl border border-emerald-100 bg-white p-4">
-              <div className="flex items-center justify-between">
-                <strong className="text-sm">Your saving streak</strong>
-                <Badge tone={teen.streak.weeks >= 4 ? "green" : "slate"}>{Math.min(teen.streak.weeks, 4)}/4 weeks</Badge>
-              </div>
-              <p className="mt-2 text-xs text-slate-600">{teen.streak.eligible ? "You've unlocked a parent-funded bonus match. Ask your parent to review it." : "Keep your weekly allowance savings going to unlock a bonus match."}</p>
-            </div>
-          )}
-        </div>
-
-        <Card title="Something broke? File a claim">
-          <form onSubmit={fileClaim} className="space-y-3">
-            <input name="title" className={inputCls} placeholder="e.g. Cracked phone screen" required />
-            <textarea name="description" className={`${inputCls} h-24`} placeholder="What happened? Add details so the AI review can help your parent." required />
-            <div className="flex flex-wrap gap-3">
-              <input name="amount" className={`${inputCls} w-40`} placeholder="Repair cost ($)" inputMode="decimal" required />
-              <input name="photo" type="file" accept="image/jpeg,image/png,image/webp" className="text-sm" required />
-            </div>
-            <Button type="submit" disabled={busy}>{busy ? "Gemini is reviewing…" : "Send claim"}</Button>
-          </form>
-        </Card>
-
-        {claims.length > 0 && (
-          <Card title="My claims">
-            <div className="space-y-3">
-              {claims.map((c) => (
-                <div key={c.id} className="rounded-xl border border-slate-200 p-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <strong>{c.title}</strong>
-                    {c.status === "pending_parent" && <Badge tone="amber">Waiting for parent</Badge>}
-                    {c.status === "paid" && <Badge tone="green">Paid {fmt(c.payout_cents || 0)}</Badge>}
-                    {c.status === "payout_pending" && <Badge tone="amber">Payout processing</Badge>}
-                    {c.status === "payout_failed" && <Badge tone="rose">Payout failed</Badge>}
-                    {c.status === "denied" && <Badge tone="rose">Not covered</Badge>}
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500">Submitted {new Date(c.created_at.replace(" ", "T") + "Z").toLocaleString()} · Requested {fmt(c.amount_cents)}</p>
-                  {c.ai && <div className="mt-2 rounded-lg bg-slate-50 p-3"><p className="text-slate-700">✦ {c.ai.teen_message}</p><p className="mt-1 text-xs text-slate-500">AI estimate: {fmt(c.ai.estimated_repair_cents)} · Suggested support: {fmt(c.ai.final_payout_cents)}</p></div>}
-                  {c.payout_cents !== null && <p className="mt-2 text-sm">Approved: <strong>{fmt(c.payout_cents)}</strong></p>}
-                  {c.parent_note && <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Parent note: {c.parent_note}</p>}
-                  {c.paypal_ref && <p className="mt-1 break-all font-mono text-xs text-slate-500">Payment reference: {c.paypal_ref}</p>}
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-        <Ledger state={state} memberId={teen.id} />
-      </div>
-      <div>
-        <Chat
-          persona="teen"
-          memberId={teen.id}
-          title="Jarvis, your money coach"
-          intro={`Hey ${teen.name}! Ask me about your umbrella fund, what's covered, or how to save for something.`}
-          suggestions={["How much is in my umbrella fund?", "Is a cracked screen covered?", "How long to save $60?"]}
-        />
-      </div>
-    </div>
   );
 }
