@@ -78,9 +78,22 @@ export default function App() {
   }
 
   async function signOut() {
-    await api("/api/auth/logout", {});
-    setSession(null);
-    setState(null);
+    setBusy(true);
+    try {
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (!response.ok) throw new Error(`Logout failed (${response.status})`);
+      // Reload from the server so the cleared HttpOnly cookie is checked afresh.
+      window.location.replace("/");
+    } catch (error) {
+      notify((error as Error).message || "Couldn't log out. Please try again.", true);
+      setBusy(false);
+    }
   }
 
   if (!session || !state) {
@@ -122,10 +135,8 @@ export default function App() {
           <p className="text-sm text-slate-500"><em>Paraguas</em> is Spanish for <strong>&ldquo;umbrella&rdquo;</strong>. AI assists with claims, parents decide, PayPal pays.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge tone={state.config.paypal === "sandbox" ? "blue" : "amber"}>PayPal: {state.config.paypal}</Badge>
-          <Badge tone={state.config.ai === "offline-demo" ? "amber" : "green"}>AI: {state.config.ai}</Badge>
           <Badge>{session.role === "parent" ? "Parent account" : current?.name}</Badge>
-          <Button variant="ghost" onClick={signOut}>Sign out</Button>
+          <Button variant="secondary" onClick={signOut} disabled={busy}>Log out</Button>
         </div>
       </header>
       {toast && <div className={`mb-4 rounded-xl px-4 py-3 text-sm ${toast.error ? "bg-rose-50 text-rose-800" : "bg-emerald-50 text-emerald-800"}`}>{toast.msg}</div>}
@@ -205,8 +216,21 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
 
 function TeenFundingCard({ teen, state, onDone, onError }: { teen: Member; state: AppState } & Handlers) {
   const [amount, setAmount] = useState((teen.allowance_cents / 100).toFixed(2));
+  const [topUpAmount, setTopUpAmount] = useState("10.00");
   const [busy, setBusy] = useState(false);
+  const [savingAllowance, setSavingAllowance] = useState(false);
   const b = teen.balances!;
+  async function saveAllowance() {
+    setSavingAllowance(true);
+    try {
+      await api("/api/allowance", { memberId: teen.id, amount });
+      onDone(`Weekly allowance for ${teen.name} saved as ${Number(amount).toFixed(2)}.`);
+    } catch (e) {
+      onError((e as Error).message);
+    } finally {
+      setSavingAllowance(false);
+    }
+  }
   async function subscribe() {
     setBusy(true);
     try {
@@ -232,10 +256,25 @@ function TeenFundingCard({ teen, state, onDone, onError }: { teen: Member; state
           <div className="text-xl font-semibold text-emerald-800">{fmt(b.jar)}</div>
         </div>
       </div>
-      <label className="mb-1 block text-xs font-medium text-slate-600">Top up allowance ($)</label>
-      <input className={`${inputCls} mb-2`} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" />
-      <p className="mb-3 text-xs text-slate-500">{state.rules.jar_percent}% goes into the umbrella fund automatically.</p>
-      <TopUp memberId={teen.id} amount={amount} clientId={state.config.paypalClientId} cryptoEnabled={state.config.cryptoEnabled} onDone={onDone} onError={onError} />
+      <div className="mb-4 rounded-xl border border-slate-200 p-3">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <strong className="text-sm text-slate-800">Weekly allowance</strong>
+          <Badge tone="green">Saved: {fmt(teen.allowance_cents)}/week</Badge>
+        </div>
+        <label className="mb-1 block text-xs font-medium text-slate-600">Set weekly amount ($)</label>
+        <input className={`${inputCls} mb-2`} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" aria-label={`Weekly allowance for ${teen.name}`} />
+        <p className="mb-3 text-xs text-slate-500">This changes the saved weekly allowance only. No payment is taken. {state.rules.jar_percent}% is allocated to the umbrella fund when allowance is paid.</p>
+        <Button onClick={saveAllowance} disabled={savingAllowance || !/^\d+(?:\.\d{1,2})?$/.test(amount) || Number(amount) < 1 || Number(amount) > 500}>
+          {savingAllowance ? "Saving…" : "Save weekly allowance"}
+        </Button>
+      </div>
+      <div className="rounded-xl bg-slate-50 p-3">
+        <strong className="text-sm text-slate-800">Make a one-time top-up</strong>
+        <p className="mb-2 mt-1 text-xs text-slate-500">Add extra money now. PayPal checkout opens only when you choose to pay.</p>
+        <label className="mb-1 block text-xs font-medium text-slate-600">Top-up amount ($)</label>
+        <input className={`${inputCls} mb-3`} value={topUpAmount} onChange={(e) => setTopUpAmount(e.target.value)} inputMode="decimal" aria-label={`One-time top-up for ${teen.name}`} />
+        <TopUp memberId={teen.id} amount={topUpAmount} clientId={state.config.paypalClientId} cryptoEnabled={state.config.cryptoEnabled} onDone={onDone} onError={onError} />
+      </div>
       {teen.streak && (
         <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3">
           <div className="flex items-center justify-between gap-2">
