@@ -146,11 +146,11 @@ export default function App() {
 
   const current = session.role === "teen" ? state.members.find((m) => m.id === session.memberId) : null;
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <div className="mx-auto min-h-screen max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
+      <header className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 pb-5">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight"><span aria-hidden>☂️ </span>Para<span className="text-emerald-600">guas</span></h1>
-          <p className="text-sm text-slate-500"><em>Paraguas</em> is Spanish for <strong>&ldquo;umbrella&rdquo;</strong>. AI assists with claims, parents decide, PayPal pays.</p>
+          <h1 className="text-[1.7rem] font-bold tracking-[-0.055em] text-slate-950"><span aria-hidden>☂️ </span>Para<span className="text-emerald-600">guas</span></h1>
+          <p className="mt-1 text-sm text-slate-500">Family money, made clearer. AI helps review claims; parents stay in control.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge>{session.role === "parent" ? "Parent account" : current?.name}</Badge>
@@ -179,8 +179,8 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
     } catch (error) { onError((error as Error).message); }
   }
   return (
-    <div className="grid gap-6 lg:grid-cols-3">
-      <div className="space-y-6 lg:col-span-2">
+    <div className="grid items-start gap-5 lg:grid-cols-12 lg:gap-6">
+      <div className="space-y-5 lg:col-span-8">
         <div className="grid gap-4 sm:grid-cols-2">
           {teens.map((t) => (
             <TeenFundingCard key={t.id} teen={t} state={state} onDone={onDone} onError={onError} />
@@ -218,7 +218,7 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
         )}
         <Ledger state={state} />
       </div>
-      <div className="space-y-6">
+      <div className="space-y-5 lg:col-span-4">
         <RulesCard state={state} onDone={onDone} onError={onError} />
         <Chat
           persona="parent"
@@ -542,8 +542,8 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-3">
-      <div className="space-y-6 lg:col-span-2">
+    <div className="grid items-start gap-5 lg:grid-cols-12 lg:gap-6">
+      <div className="space-y-5 lg:col-span-8">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl bg-slate-900 p-5 text-white">
             <div className="text-sm text-slate-300">Spending money</div>
