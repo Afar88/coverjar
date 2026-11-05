@@ -80,16 +80,18 @@ export default function App() {
   async function signOut() {
     setBusy(true);
     try {
-      await api("/api/auth/logout", {});
-      setSession(null);
-      setState(null);
-      setPin("");
-      setMemberId("");
-      setRole("parent");
-      notify("You have been logged out.");
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (!response.ok) throw new Error(`Logout failed (${response.status})`);
+      // Reload from the server so the cleared HttpOnly cookie is checked afresh.
+      window.location.replace("/");
     } catch (error) {
       notify((error as Error).message || "Couldn't log out. Please try again.", true);
-    } finally {
       setBusy(false);
     }
   }
