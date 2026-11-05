@@ -6,6 +6,7 @@ import type { AppState, Claim, Member } from "./types";
 import { api, Badge, Button, Card, fmt, inputCls } from "./ui";
 import { TopUp } from "./PayPalButton";
 import { Chat } from "./Chat";
+import { LedgerGrid } from "./LedgerGrid";
 
 const RETURN_MESSAGES: Record<string, string> = {
   "topup=crypto-ok": "Crypto (PYUSD) payment completed and credited.",
@@ -479,38 +480,10 @@ function RulesCard({ state, onDone, onError }: { state: AppState } & Handlers) {
 
 function Ledger({ state, memberId }: { state: AppState; memberId?: string }) {
   const names = Object.fromEntries(state.members.map((m) => [m.id, m.name]));
-  const rows = state.ledger.filter((l) => !memberId || l.member_id === memberId).slice(0, 25);
+  const rows = state.ledger.filter((entry) => !memberId || entry.member_id === memberId).slice(0, 100);
   return (
     <Card title="Activity">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs text-slate-500">
-            <tr>
-              <th className="pb-2">When</th>
-              {!memberId && <th className="pb-2">Who</th>}
-              <th className="pb-2">What</th>
-              <th className="pb-2">Bucket</th>
-              <th className="pb-2 text-right">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((l) => (
-              <tr key={l.id} className="border-t border-slate-100">
-                <td className="py-1.5 text-slate-500">{l.created_at.slice(0, 10)}</td>
-                {!memberId && <td>{names[l.member_id]}</td>}
-                <td>
-                  {l.memo}
-                  {l.paypal_ref && l.paypal_ref !== "SEED" && <span className="ml-1 font-mono text-xs text-slate-400">{l.paypal_ref}</span>}
-                </td>
-                <td>
-                  <Badge tone={l.bucket === "jar" ? "green" : "slate"}>{l.bucket === "jar" ? "umbrella" : "spending"}</Badge>
-                </td>
-                <td className={`text-right font-medium ${l.amount_cents < 0 ? "text-rose-700" : "text-emerald-700"}`}>{fmt(l.amount_cents)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <LedgerGrid entries={rows} names={names} showPerson={!memberId} />
     </Card>
   );
 }
