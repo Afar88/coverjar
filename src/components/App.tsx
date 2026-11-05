@@ -253,7 +253,7 @@ function TeenFundingCard({ teen, state, onDone, onError }: { teen: Member; state
         <label className="mb-1 block text-xs font-medium text-slate-600">Set weekly amount ($)</label>
         <input className={`${inputCls} mb-2`} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" aria-label={`Weekly allowance for ${teen.name}`} />
         <p className="mb-3 text-xs text-slate-500">This changes the saved weekly allowance only. No payment is taken. {state.rules.jar_percent}% is allocated to the umbrella fund when allowance is paid.</p>
-        <Button onClick={saveAllowance} disabled={savingAllowance || !/^\\d+(?:\\.\\d{1,2})?$/.test(amount) || Number(amount) < 1 || Number(amount) > 500}>
+        <Button onClick={saveAllowance} disabled={savingAllowance || !/^\d+(?:\.\d{1,2})?$/.test(amount) || Number(amount) < 1 || Number(amount) > 500}>
           {savingAllowance ? "Saving…" : "Save weekly allowance"}
         </Button>
       </div>
