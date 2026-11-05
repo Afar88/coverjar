@@ -135,8 +135,6 @@ export default function App() {
           <p className="text-sm text-slate-500"><em>Paraguas</em> is Spanish for <strong>&ldquo;umbrella&rdquo;</strong>. AI assists with claims, parents decide, PayPal pays.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge tone={state.config.paypal === "sandbox" ? "blue" : "amber"}>PayPal: {state.config.paypal}</Badge>
-          <Badge tone={state.config.ai === "offline-demo" ? "amber" : "green"}>AI: {state.config.ai}</Badge>
           <Badge>{session.role === "parent" ? "Parent account" : current?.name}</Badge>
           <Button variant="secondary" onClick={signOut} disabled={busy}>Log out</Button>
         </div>
