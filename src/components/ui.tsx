@@ -5,10 +5,10 @@ export const fmt = (cents: number) => (cents < 0 ? "-" : "") + "$" + (Math.abs(c
 
 export function Card({ title, children, right }: { title?: ReactNode; children: ReactNode; right?: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_2px_12px_rgba(15,23,42,0.035)] sm:p-6">
       {(title || right) && (
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-base font-semibold text-slate-800">{title}</h2>
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <h2 className="text-[15px] font-semibold tracking-tight text-slate-900">{title}</h2>
           {right}
         </div>
       )}
@@ -31,8 +31,8 @@ export function Button({
   type?: "button" | "submit";
 }) {
   const styles = {
-    primary: "bg-emerald-600 text-white hover:bg-emerald-700",
-    secondary: "bg-white text-slate-700 border border-slate-300 hover:bg-slate-50",
+    primary: "bg-slate-950 text-white shadow-sm hover:bg-slate-800",
+    secondary: "bg-white text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-50",
     danger: "bg-white text-rose-700 border border-rose-300 hover:bg-rose-50",
     ghost: "text-slate-600 hover:bg-slate-100",
   }[variant];
@@ -41,7 +41,7 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${styles}`}
+      className={`rounded-xl px-4 py-2.5 text-sm font-semibold tracking-tight transition duration-150 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 ${styles}`}
     >
       {children}
     </button>
@@ -56,11 +56,11 @@ export function Badge({ children, tone = "slate" }: { children: ReactNode; tone?
     rose: "bg-rose-100 text-rose-800",
     blue: "bg-sky-100 text-sky-800",
   }[tone];
-  return <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${t}`}>{children}</span>;
+  return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide ${t}`}>{children}</span>;
 }
 
 export const inputCls =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100";
+  "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50";
 
 export async function api<T>(url: string, body?: unknown, isForm = false): Promise<T> {
   const res = await fetch(url, {
