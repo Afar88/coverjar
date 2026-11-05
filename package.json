@@ -17,7 +17,8 @@
     "next": "16.4.5",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "zod": "^4.6.7"
+    "zod": "^4.6.7",
+    "ag-grid-react": "^36.3.0"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
