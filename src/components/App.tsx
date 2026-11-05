@@ -78,9 +78,20 @@ export default function App() {
   }
 
   async function signOut() {
-    await api("/api/auth/logout", {});
-    setSession(null);
-    setState(null);
+    setBusy(true);
+    try {
+      await api("/api/auth/logout", {});
+      setSession(null);
+      setState(null);
+      setPin("");
+      setMemberId("");
+      setRole("parent");
+      notify("You have been logged out.");
+    } catch (error) {
+      notify((error as Error).message || "Couldn't log out. Please try again.", true);
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (!session || !state) {
@@ -125,7 +136,7 @@ export default function App() {
           <Badge tone={state.config.paypal === "sandbox" ? "blue" : "amber"}>PayPal: {state.config.paypal}</Badge>
           <Badge tone={state.config.ai === "offline-demo" ? "amber" : "green"}>AI: {state.config.ai}</Badge>
           <Badge>{session.role === "parent" ? "Parent account" : current?.name}</Badge>
-          <Button variant="ghost" onClick={signOut}>Sign out</Button>
+          <Button variant="secondary" onClick={signOut} disabled={busy}>Log out</Button>
         </div>
       </header>
       {toast && <div className={`mb-4 rounded-xl px-4 py-3 text-sm ${toast.error ? "bg-rose-50 text-rose-800" : "bg-emerald-50 text-emerald-800"}`}>{toast.msg}</div>}
