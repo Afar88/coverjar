@@ -10,12 +10,14 @@ export function detectClaimPhoto(data:Buffer):{mime:ClaimPhotoMime;extension:".j
   return null;
 }
 
-export function isMemberClaimPhotoPath(pathname:string,memberId:string) {
-  return /^[a-zA-Z0-9_-]{1,64}$/.test(memberId) && pathname.startsWith(`claims/${memberId}/`) &&
-    /^claims\/[a-zA-Z0-9_-]{1,64}\/[a-f0-9-]+\.(jpg|png|webp)$/.test(pathname);
+export function isMemberClaimPhotoPath(pathname:string,memberId:string,familyId="legacy-family") {
+  if(!/^[a-zA-Z0-9_-]{1,64}$/.test(memberId)||!/^[a-zA-Z0-9_-]{1,64}$/.test(familyId))return false;
+  const familyScoped=new RegExp("^claims/"+familyId+"/"+memberId+"/[a-f0-9-]+\\.(jpg|png|webp)$");
+  const legacy=familyId==="legacy-family"&&new RegExp("^claims/"+memberId+"/[a-f0-9-]+\\.(jpg|png|webp)$");
+  return familyScoped.test(pathname)||Boolean(legacy&&legacy.test(pathname));
 }
 
-/** Read a private Blob by an authenticated member-scoped pathname, never a caller-supplied URL. */
+/** Read a private Blob by a family- and member-scoped pathname, never a caller-supplied URL. */
 export async function readClaimPhoto(pathname:string,memberId:string,familyId="legacy-family") {
   if(!isMemberClaimPhotoPath(pathname,memberId,familyId))return null;
   return get(pathname,{access:"private"});
