@@ -18,6 +18,7 @@ async function accessToken() {
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: "grant_type=client_credentials",
+    signal: AbortSignal.timeout(5000),
   });
   if (!res.ok) throw new Error(`PayPal auth failed (${res.status}): ${await res.text()}`);
   const json = (await res.json()) as { access_token: string; expires_in: number };
@@ -34,6 +35,7 @@ async function paypalFetch<T>(path: string, init: { method?: string; body?: unkn
       ...(init.requestId ? { "PayPal-Request-Id": init.requestId } : {}),
     },
     body: init.body ? JSON.stringify(init.body) : undefined,
+    signal: AbortSignal.timeout(6000),
   });
   const text = await res.text();
   const json = text ? JSON.parse(text) : {};

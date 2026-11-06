@@ -7,7 +7,7 @@ export async function POST(req:Request) {
   if(!session)return Response.json({error:"Parent access required"},{status:403});
   let body:{memberId?:string};
   try{body=await req.json();}catch{return Response.json({error:"Invalid request body"},{status:400});}
-  const teen=await getMember(String(body.memberId||""));
+  const teen=await getMember(String(body.memberId||""),undefined,session.familyId);
   if(!teen||teen.role!=="teen")return Response.json({error:"Unknown teen"},{status:400});
   const origin=new URL(req.url).origin;
   try {

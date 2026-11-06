@@ -3,7 +3,8 @@ import { toCents } from "@/lib/money";
 import { requireRole } from "@/lib/auth";
 
 export async function POST(req: Request) {
-  if (!requireRole(req, "parent")) {
+  const session=requireRole(req,"parent");
+  if (!session) {
     return Response.json({ error: "Parent access required" }, { status: 403 });
   }
 
@@ -15,17 +16,25 @@ export async function POST(req: Request) {
   }
 
   const memberId = typeof body.memberId === "string" ? body.memberId.trim() : "";
-  const cents = toCents(body.amount);
+  const amountText = typeof body.amount === "number" ? String(body.amount) :
+    typeof body.amount === "string" ? body.amount.trim() : "";
+  if (!/^(?:\d+)(?:\.\d{1,2})?$/.test(amountText)) {
+    return Response.json({ error: "Enter a valid amount with up to two decimal places." }, { status: 400 });
+  }
+  const cents = toCents(amountText);
   if (!memberId || !Number.isSafeInteger(cents) || cents < 100 || cents > 50000) {
     return Response.json({ error: "Weekly allowance must be between $1 and $500." }, { status: 400 });
   }
 
-  const member = await getMember(memberId);
+  const member = await getMember(memberId,undefined,session.familyId);
   if (!member || member.role !== "teen") {
     return Response.json({ error: "Unknown teen profile." }, { status: 404 });
   }
 
-  await setAllowance(memberId, cents);
+  const updated = await setAllowance(memberId,cents,session.familyId);
+  if (updated !== 1) {
+    return Response.json({ error: "The allowance could not be saved. Refresh and try again." }, { status: 409 });
+  }
   return Response.json({
     success: true,
     memberId,

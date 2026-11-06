@@ -6,6 +6,8 @@ import type { AppState, Claim, Member } from "./types";
 import { api, Badge, Button, Card, fmt, inputCls } from "./ui";
 import { TopUp } from "./PayPalButton";
 import { Chat } from "./Chat";
+import { LedgerGrid } from "./LedgerGrid";
+import { ClaimsGrid } from "./ClaimsGrid";
 
 const RETURN_MESSAGES: Record<string, string> = {
   "topup=crypto-ok": "Crypto (PYUSD) payment completed and credited.",
@@ -21,11 +23,16 @@ const RETURN_MESSAGES: Record<string, string> = {
 export default function App() {
   const params = useSearchParams();
   const [state, setState] = useState<AppState | null>(null);
-  const [session, setSession] = useState<{ role: "parent" | "teen"; memberId: string } | null>(null);
+  const [session, setSession] = useState<{ role: "parent" | "teen"; memberId: string; familyId: string } | null>(null);
   const [loginOptions, setLoginOptions] = useState<{ id: string; name: string; emoji: string }[]>([]);
   const [role, setRole] = useState<"parent" | "teen">("parent");
   const [memberId, setMemberId] = useState("");
   const [pin, setPin] = useState("");
+  const [familyCode,setFamilyCode]=useState("");
+  const [parentName,setParentName]=useState("");
+  const [password,setPassword]=useState("");
+  const [registerMode,setRegisterMode]=useState(false);
+  const [issuedFamilyCode,setIssuedFamilyCode]=useState("");
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ msg: string; error?: boolean } | null>(() => {
     for (const [k, msg] of Object.entries(RETURN_MESSAGES)) {
@@ -45,12 +52,17 @@ export default function App() {
 
   useEffect(() => {
     let alive = true;
+    if(!familyCode){setLoginOptions([]);setMemberId("");return;}
+    api<{teens:{id:string;name:string;emoji:string}[]}>(`/api/auth/options?familyCode=${encodeURIComponent(familyCode)}`).then(result=>{if(alive){setLoginOptions(result.teens);setMemberId("");}}).catch(()=>{if(alive)setLoginOptions([]);});
+    return ()=>{alive=false;};
+  },[familyCode]);
+
+  useEffect(() => {
+    let alive = true;
     Promise.all([
-      api<{ authenticated: boolean; session: { role: "parent" | "teen"; memberId: string } | null }>("/api/auth/session"),
-      api<{ teens: { id: string; name: string; emoji: string }[] }>("/api/auth/options"),
-    ]).then(async ([auth, options]) => {
+      api<{ authenticated: boolean; session: { role: "parent" | "teen"; memberId: string; familyId: string } | null }>("/api/auth/session"),
+    ]).then(async ([auth]) => {
       if (!alive) return;
-      setLoginOptions(options.teens);
       if (auth.authenticated && auth.session) {
         setSession(auth.session);
         const next = await api<AppState>("/api/state");
@@ -61,20 +73,49 @@ export default function App() {
     return () => { alive = false; };
   }, [notify]);
 
+  // Keep already-open dashboards in sync when a parent changes an allowance.
+  useEffect(() => {
+    if (!session) return;
+    let active = true;
+    const sync = async () => {
+      try {
+        const next = await api<AppState>("/api/state");
+        if (active) setState(next);
+      } catch {
+        // Keep the last good state during temporary network failures.
+      }
+    };
+    const interval = window.setInterval(sync, 15000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [session]);
+
   async function signIn(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     try {
-      const result = await api<{ role: "parent" | "teen"; memberId: string }>("/api/auth/login", {
-        role, memberId: role === "parent" ? "parent" : memberId, pin,
+      const result = await api<{ role: "parent" | "teen"; memberId: string; familyId?: string; familyCode?:string }>("/api/auth/login", {
+        role, familyCode, memberId: role === "parent" ? undefined : memberId, pin, password,
       });
-      setSession(result);
+      setSession({...result,familyId:result.familyId||"legacy-family"});
+      setIssuedFamilyCode(result.familyCode||"");
       setPin("");
       setState(await api<AppState>("/api/state"));
       notify("You're signed in.");
     } catch (error) {
       notify((error as Error).message, true);
     } finally { setBusy(false); }
+  }
+
+  async function registerParent(e:React.FormEvent) {
+    e.preventDefault(); setBusy(true);
+    try {
+      const result=await api<{role:"parent";memberId:string;familyId:string;familyCode:string}>("/api/auth/register",{name:parentName,password});
+      setSession(result); setIssuedFamilyCode(result.familyCode);
+      setState(await api<AppState>("/api/state"));
+      setPassword("");
+      notify("Family created. Save your family code somewhere safe.");
+    } catch(error) { notify((error as Error).message,true); }
+    finally { setBusy(false); }
   }
 
   async function signOut() {
@@ -103,11 +144,16 @@ export default function App() {
           <h1 className="text-3xl font-bold tracking-tight"><span aria-hidden>☂️ </span>Para<span className="text-emerald-600">guas</span></h1>
           <p className="mt-2 text-sm text-slate-500">Your family&apos;s allowance and protection fund.</p>
         </div>
-        <form onSubmit={signIn} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex rounded-xl bg-slate-100 p-1">
+        <form onSubmit={registerMode?registerParent:signIn} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          {!registerMode && <div className="flex rounded-xl bg-slate-100 p-1">
             <button type="button" onClick={() => setRole("parent")} className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${role === "parent" ? "bg-white shadow-sm" : "text-slate-500"}`}>Parent</button>
             <button type="button" onClick={() => setRole("teen")} className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${role === "teen" ? "bg-white shadow-sm" : "text-slate-500"}`}>Teen</button>
-          </div>
+          </div>}
+          {registerMode ? <>
+            <label className="block text-sm font-medium">Parent name<input className={inputCls+" mt-1"} value={parentName} onChange={e=>setParentName(e.target.value)} required maxLength={80} /></label>
+            <label className="block text-sm font-medium">Password<input className={inputCls+" mt-1"} type="password" autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)} minLength={10} required placeholder="At least 10 characters" /></label>
+          </> : <>
+          <label className="block text-sm font-medium">Family code<input className={inputCls+" mt-1 uppercase"} value={familyCode} onChange={e=>setFamilyCode(e.target.value.toUpperCase())} required placeholder="FAM-XXXX-XXXX" /></label>
           {role === "teen" && (
             <label className="block text-sm font-medium">Your profile
               <select className={`${inputCls} mt-1`} value={memberId} onChange={(e) => setMemberId(e.target.value)} required>
@@ -116,10 +162,12 @@ export default function App() {
               </select>
             </label>
           )}
-          <label className="block text-sm font-medium">Passcode
-            <input className={`${inputCls} mt-1`} type="password" inputMode="numeric" autoComplete="current-password" value={pin} onChange={(e) => setPin(e.target.value)} minLength={4} maxLength={12} required placeholder="Enter your passcode" />
+          <label className="block text-sm font-medium">{role==="parent"?"Password":"Teen PIN"}
+            <input className={`${inputCls} mt-1`} type="password" inputMode={role==="teen"?"numeric":"text"} autoComplete="current-password" value={role==="parent"?password:pin} onChange={(e) => role==="parent"?setPassword(e.target.value):setPin(e.target.value)} minLength={role==="parent"?10:4} maxLength={role==="parent"?128:12} required placeholder={role==="parent"?"Enter your password":"Enter your PIN"} />
           </label>
-          <Button type="submit" disabled={busy || (role === "teen" && !memberId)}>{busy ? "Signing in…" : "Sign in"}</Button>
+          </>}
+          <Button type="submit" disabled={busy || (!registerMode && role === "teen" && !memberId)}>{busy ? "Please wait…" : registerMode?"Create family": "Sign in"}</Button>
+          <button type="button" className="w-full text-sm text-emerald-700" onClick={()=>setRegisterMode(v=>!v)}>{registerMode?"Already have a family? Sign in":"New to Paraguas? Create a family"}</button>
           {toast && <p className={`text-sm ${toast.error ? "text-rose-700" : "text-emerald-700"}`}>{toast.msg}</p>}
         </form>
       </div>
@@ -128,20 +176,21 @@ export default function App() {
 
   const current = session.role === "teen" ? state.members.find((m) => m.id === session.memberId) : null;
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <div className="mx-auto min-h-screen max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
+      <header className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 pb-5">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight"><span aria-hidden>☂️ </span>Para<span className="text-emerald-600">guas</span></h1>
-          <p className="text-sm text-slate-500"><em>Paraguas</em> is Spanish for <strong>&ldquo;umbrella&rdquo;</strong>. AI assists with claims, parents decide, PayPal pays.</p>
+          <h1 className="text-[1.7rem] font-bold tracking-[-0.055em] text-slate-950"><span aria-hidden>☂️ </span>Para<span className="text-emerald-600">guas</span></h1>
+          <p className="mt-1 text-sm text-slate-500">Family money, made clearer. AI helps review claims; parents stay in control.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge>{session.role === "parent" ? "Parent account" : current?.name}</Badge>
           <Button variant="secondary" onClick={signOut} disabled={busy}>Log out</Button>
         </div>
       </header>
+      {issuedFamilyCode && session.role==="parent" && <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm">Your family code: <strong className="select-all">{issuedFamilyCode}</strong>. Share this code with your teens so they can sign in.</div>}
       {toast && <div className={`mb-4 rounded-xl px-4 py-3 text-sm ${toast.error ? "bg-rose-50 text-rose-800" : "bg-emerald-50 text-emerald-800"}`}>{toast.msg}</div>}
       {session.role === "parent" ? <ParentView state={state} onDone={onDone} onError={onError} /> :
-        current ? <TeenView key={current.id} teen={current} state={state} onDone={onDone} onError={onError} /> :
+        current ? <TeenView key={current.id} teen={current} familyId={session.familyId} state={state} onDone={onDone} onError={onError} /> :
         <p className="text-sm text-rose-700">Teen profile unavailable. Sign out and sign in again.</p>}
     </div>
   );
@@ -150,10 +199,21 @@ export default function App() {
 type Handlers = { onDone: (m: string) => void; onError: (m: string) => void };
 
 function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) {
+  const [teenName,setTeenName]=useState("");
+  const [teenPin,setTeenPin]=useState("");
+  const [addingTeen,setAddingTeen]=useState(false);
   const teens = state.members.filter((m) => m.role === "teen");
   const pending = state.claims.filter((c) => c.status === "pending_parent");
   const decided = state.claims.filter((c) => c.status !== "pending_parent");
   const names = Object.fromEntries(state.members.map((m) => [m.id, m.name]));
+  const totalSpend = teens.reduce((sum, teen) => sum + (teen.balances?.spend ?? 0), 0);
+  const totalJar = teens.reduce((sum, teen) => sum + (teen.balances?.jar ?? 0), 0);
+  async function addTeen(e:React.FormEvent) {
+    e.preventDefault();setAddingTeen(true);
+    try { await api("/api/family/teens",{name:teenName,pin:teenPin});setTeenName("");setTeenPin("");onDone("Teen profile created. Share your family code and their PIN with them."); }
+    catch(error){onError((error as Error).message);}
+    finally{setAddingTeen(false);}
+  }
   async function reconcileClaim(id: number) {
     try {
       const result = await api<{ status: string; message?: string }>(`/api/claims/${id}/reconcile`, {});
@@ -161,14 +221,43 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
     } catch (error) { onError((error as Error).message); }
   }
   return (
-    <div className="grid gap-6 lg:grid-cols-3">
-      <div className="space-y-6 lg:col-span-2">
-        <div className="grid gap-4 sm:grid-cols-2">
+    <div className="space-y-5">
+      <form onSubmit={addTeen} className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="min-w-[150px] flex-1"><label className="text-xs font-medium text-slate-600">Add teen name<input className={inputCls+" mt-1"} value={teenName} onChange={e=>setTeenName(e.target.value)} maxLength={80} required placeholder="Teen name" /></label></div>
+        <div className="w-36"><label className="text-xs font-medium text-slate-600">Create PIN<input className={inputCls+" mt-1"} value={teenPin} onChange={e=>setTeenPin(e.target.value)} inputMode="numeric" type="password" minLength={4} maxLength={12} pattern="[0-9]{4,12}" required placeholder="4–12 digits" /></label></div>
+        <Button type="submit" disabled={addingTeen}>{addingTeen?"Adding…":"Add teen"}</Button>
+      </form>
+      <section aria-label="Family financial overview" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium text-slate-500">Teens</p>
+          <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">{teens.length}</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium text-slate-500">Combined spending</p>
+          <p className="mt-1 text-xl font-semibold tracking-tight text-slate-950">{fmt(totalSpend)}</p>
+        </div>
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 shadow-sm">
+          <p className="text-xs font-medium text-emerald-700">Umbrella funds</p>
+          <p className="mt-1 text-xl font-semibold tracking-tight text-emerald-900">{fmt(totalJar)}</p>
+        </div>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
+          <p className="text-xs font-medium text-amber-800">Claims to review</p>
+          <p className="mt-1 text-2xl font-semibold tracking-tight text-amber-950">{pending.length}</p>
+        </div>
+      </section>
+      <nav aria-label="Parent dashboard sections" className="sticky top-2 z-20 -mx-1 flex gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white/95 p-2 shadow-sm backdrop-blur sm:mx-0">
+        {[["#family","Family"],["#review-claims","Claims"],["#claim-history","History"],["#family-activity","Activity"],["#family-rules","Rules"],["#family-assistant","AI assistant"]].map(([href,label]) => (
+          <a key={href} href={href} className="shrink-0 rounded-lg px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-emerald-50 hover:text-emerald-800">{label}</a>
+        ))}
+      </nav>
+      <div className="grid items-start gap-5 lg:grid-cols-12 lg:gap-6">
+      <div className="space-y-5 lg:col-span-8">
+        <div id="family" className="grid scroll-mt-24 gap-4 sm:grid-cols-2">
           {teens.map((t) => (
             <TeenFundingCard key={t.id} teen={t} state={state} onDone={onDone} onError={onError} />
           ))}
         </div>
-        <Card title={`Claims waiting for you (${pending.length})`}>
+        <Card title={`Claims waiting for you (${pending.length})`}><div id="review-claims" className="scroll-mt-24">
           {pending.length === 0 ? (
             <p className="text-sm text-slate-500">No claims to review. Switch to a teen to file one.</p>
           ) : (
@@ -178,37 +267,37 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
               ))}
             </div>
           )}
-        </Card>
+        </div></Card>
         {decided.length > 0 && (
-          <Card title="Decided claims">
-            <div className="space-y-2">
-              {decided.map((c) => (
-                <div key={c.id} className="rounded-xl border border-slate-200 p-3 text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <strong>{names[c.member_id]}: {c.title}</strong>
-                    {c.status === "paid" ? <Badge tone="green">Paid {fmt(c.payout_cents || 0)}</Badge> : c.status === "payout_pending" ? <Badge tone="amber">Payout processing</Badge> : c.status === "payout_failed" ? <Badge tone="rose">Payout failed</Badge> : <Badge tone="rose">Declined</Badge>}
+          <Card title={`Claim history (${decided.length})`}><div id="claim-history" className="scroll-mt-24">
+            <ClaimsGrid claims={decided} names={names} />
+            {decided.some((claim) => claim.status === "payout_pending") && (
+              <div className="mt-4 space-y-2">
+                <p className="text-xs font-medium text-slate-600">Payouts still being checked</p>
+                {decided.filter((claim) => claim.status === "payout_pending").map((claim) => (
+                  <div key={claim.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm">
+                    <div className="min-w-0">
+                      <strong>{names[claim.member_id]} · {claim.title}</strong>
+                      <p className="text-xs text-slate-600">Funds remain reserved while PayPal confirms the transfer.</p>
+                    </div>
+                    <Button variant="secondary" onClick={() => reconcileClaim(claim.id)}>Check PayPal status</Button>
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">Requested {fmt(c.amount_cents)} · Submitted {new Date(c.created_at.replace(" ", "T") + "Z").toLocaleString()}</p>
-                  {c.ai && <div className="mt-2"><AiPanel claim={c} /></div>}
-                  {c.payout_cents !== null && <p className="mt-2">Approved amount: <strong>{fmt(c.payout_cents)}</strong></p>}
-                  {c.parent_note && <p className="mt-2 rounded-lg bg-slate-50 p-2 text-slate-700">Parent note: {c.parent_note}</p>}
-                  {c.paypal_ref && <p className="mt-1 break-all font-mono text-xs text-slate-500">PayPal reference: {c.paypal_ref}</p>}
-                  {c.status === "payout_pending" && <div className="mt-3"><Button variant="secondary" onClick={() => reconcileClaim(c.id)}>Check PayPal payout status</Button><p className="mt-1 text-xs text-slate-500">This checks the existing transfer; it does not send another payment.</p></div>}
-                </div>
-              ))}
-            </div>
-          </Card>
+                ))}
+              </div>
+            )}
+          </div></Card>
         )}
-        <Ledger state={state} />
+        <div id="family-activity" className="scroll-mt-24"><Ledger state={state} /></div>
       </div>
-      <div className="space-y-6">
-        <RulesCard state={state} onDone={onDone} onError={onError} />
-        <Chat
+      <div className="space-y-5 lg:col-span-4">
+        <div id="family-rules" className="scroll-mt-24"><RulesCard state={state} onDone={onDone} onError={onError} /></div>
+        <div id="family-assistant" className="scroll-mt-24"><Chat
           persona="parent"
           title="Family assistant"
           intro="I can look up PayPal transactions, subscriptions and invoices, summarise claims, and adjust the umbrella rules for you."
           suggestions={["How are the umbrella funds doing?", "Show recent PayPal transactions", "Raise the umbrella share to 25%"]}
-        />
+        /></div>
+      </div>
       </div>
     </div>
   );
@@ -219,6 +308,7 @@ function TeenFundingCard({ teen, state, onDone, onError }: { teen: Member; state
   const [topUpAmount, setTopUpAmount] = useState("10.00");
   const [busy, setBusy] = useState(false);
   const [savingAllowance, setSavingAllowance] = useState(false);
+  useEffect(() => setAmount((teen.allowance_cents / 100).toFixed(2)), [teen.allowance_cents]);
   const b = teen.balances!;
   async function saveAllowance() {
     setSavingAllowance(true);
@@ -351,6 +441,7 @@ function ParentClaim({ claim, teenName, state, onDone, onError }: { claim: Claim
   const [payee, setPayee] = useState(claim.ai?.payee ?? "repair_shop");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
   async function decide(decision: "approve" | "deny") {
     setBusy(true);
     try {
@@ -367,7 +458,10 @@ function ParentClaim({ claim, teenName, state, onDone, onError }: { claim: Claim
       <div className="mb-3 flex flex-wrap gap-4">
         {claim.photo_file && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={`/api/photos/${claim.id}`} alt="Damage" className="h-28 w-28 rounded-lg object-cover" />
+          <button type="button" onClick={() => setPhotoOpen(true)} className="group relative h-28 w-28 shrink-0 overflow-hidden rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" aria-label="Enlarge claim photo">
+            <img src={`/api/photos/${claim.id}`} alt="Damage reported in claim" className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+            <span className="absolute inset-x-0 bottom-0 bg-slate-950/65 px-1 py-1 text-center text-[10px] font-medium text-white">View photo</span>
+          </button>
         )}
         <div className="min-w-0 flex-1">
           <div className="font-semibold">
@@ -380,6 +474,12 @@ function ParentClaim({ claim, teenName, state, onDone, onError }: { claim: Claim
         </div>
       </div>
       <AiPanel claim={claim} />
+      {photoOpen && claim.photo_file && (
+        <div role="dialog" aria-modal="true" aria-label="Claim photo preview" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4" onClick={() => setPhotoOpen(false)}>
+          <button type="button" className="absolute right-4 top-4 rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg" onClick={() => setPhotoOpen(false)}>Close</button>
+          <img src={`/api/photos/${claim.id}`} alt="Enlarged claim evidence" className="max-h-[85vh] max-w-full rounded-xl object-contain shadow-2xl" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
       <div className="mt-3 flex flex-wrap items-end gap-2">
         <div>
           <label className="block text-xs text-slate-500">Payout ($)</label>
@@ -462,43 +562,15 @@ function RulesCard({ state, onDone, onError }: { state: AppState } & Handlers) {
 
 function Ledger({ state, memberId }: { state: AppState; memberId?: string }) {
   const names = Object.fromEntries(state.members.map((m) => [m.id, m.name]));
-  const rows = state.ledger.filter((l) => !memberId || l.member_id === memberId).slice(0, 25);
+  const rows = state.ledger.filter((entry) => !memberId || entry.member_id === memberId).slice(0, 100);
   return (
     <Card title="Activity">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs text-slate-500">
-            <tr>
-              <th className="pb-2">When</th>
-              {!memberId && <th className="pb-2">Who</th>}
-              <th className="pb-2">What</th>
-              <th className="pb-2">Bucket</th>
-              <th className="pb-2 text-right">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((l) => (
-              <tr key={l.id} className="border-t border-slate-100">
-                <td className="py-1.5 text-slate-500">{l.created_at.slice(0, 10)}</td>
-                {!memberId && <td>{names[l.member_id]}</td>}
-                <td>
-                  {l.memo}
-                  {l.paypal_ref && l.paypal_ref !== "SEED" && <span className="ml-1 font-mono text-xs text-slate-400">{l.paypal_ref}</span>}
-                </td>
-                <td>
-                  <Badge tone={l.bucket === "jar" ? "green" : "slate"}>{l.bucket === "jar" ? "umbrella" : "spending"}</Badge>
-                </td>
-                <td className={`text-right font-medium ${l.amount_cents < 0 ? "text-rose-700" : "text-emerald-700"}`}>{fmt(l.amount_cents)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <LedgerGrid entries={rows} names={names} showPerson={!memberId} />
     </Card>
   );
 }
 
-function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppState } & Handlers) {
+function TeenView({ teen, familyId, state, onDone, onError }: { teen: Member; familyId:string; state: AppState } & Handlers) {
   const b = teen.balances!;
   const claims = state.claims.filter((c) => c.member_id === teen.id);
   const [busy, setBusy] = useState(false);
@@ -524,10 +596,10 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
     }
     setBusy(true);
     try {
-      const blob = await upload(`claims/${teen.id}/${crypto.randomUUID()}${extension}`, photo, {
+      const blob = await upload(`claims/${familyId}/${teen.id}/${crypto.randomUUID()}${extension}`, photo, {
         access: "private",
         handleUploadUrl: "/api/claim-photo/upload",
-        clientPayload: teen.id,
+        clientPayload: JSON.stringify({memberId:teen.id,familyId}),
       });
       fd.delete("photo");
       fd.set("photoPath", blob.pathname);
@@ -552,9 +624,18 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-3">
-      <div className="space-y-6 lg:col-span-2">
-        <div className="grid gap-4 sm:grid-cols-2">
+    <div className="space-y-5">
+      <section aria-label="Your money overview" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><p className="text-xs font-medium text-slate-500">Spending money</p><p className="mt-1 text-xl font-semibold tracking-tight text-slate-950">{fmt(b.spend)}</p></div>
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 shadow-sm"><p className="text-xs font-medium text-emerald-700">Umbrella fund</p><p className="mt-1 text-xl font-semibold tracking-tight text-emerald-900">{fmt(b.jar)}</p></div>
+        <div className="col-span-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:col-span-1"><p className="text-xs font-medium text-slate-500">My claims</p><p className="mt-1 text-xl font-semibold tracking-tight text-slate-950">{claims.length}</p></div>
+      </section>
+      <nav aria-label="Teen dashboard sections" className="sticky top-2 z-20 -mx-1 flex gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white/95 p-2 shadow-sm backdrop-blur sm:mx-0">
+        {[["#teen-money","My money"],["#file-claim","File a claim"],["#my-claims","My claims"],["#teen-activity","Activity"],["#money-coach","Money coach"]].map(([href,label]) => <a key={href} href={href} className="shrink-0 rounded-lg px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-emerald-50 hover:text-emerald-800">{label}</a>)}
+      </nav>
+      <div className="grid items-start gap-5 lg:grid-cols-12 lg:gap-6">
+      <div className="space-y-5 lg:col-span-8">
+        <div id="teen-money" className="grid scroll-mt-24 gap-4 sm:grid-cols-2">
           <div className="rounded-2xl bg-slate-900 p-5 text-white">
             <div className="text-sm text-slate-300">Spending money</div>
             <div className="text-3xl font-bold">{fmt(b.spend)}</div>
@@ -582,7 +663,7 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
           )}
         </div>
 
-        <Card title="Something broke? File a claim">
+        <div id="file-claim" className="scroll-mt-24"><Card title="Something broke? File a claim">
           <form onSubmit={fileClaim} className="space-y-3">
             <input name="title" className={inputCls} placeholder="e.g. Cracked phone screen" required />
             <textarea name="description" className={`${inputCls} h-24`} placeholder="What happened? Add details so the AI review can help your parent." required />
@@ -592,10 +673,10 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
             </div>
             <Button type="submit" disabled={busy}>{busy ? "Gemini is reviewing…" : "Send claim"}</Button>
           </form>
-        </Card>
+        </Card></div>
 
         {claims.length > 0 && (
-          <Card title="My claims">
+          <div id="my-claims" className="scroll-mt-24"><Card title="My claims">
             <div className="space-y-3">
               {claims.map((c) => (
                 <div key={c.id} className="rounded-xl border border-slate-200 p-3 text-sm">
@@ -615,11 +696,11 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
                 </div>
               ))}
             </div>
-          </Card>
+          </Card></div>
         )}
-        <Ledger state={state} memberId={teen.id} />
+        <div id="teen-activity" className="scroll-mt-24"><Ledger state={state} memberId={teen.id} /></div>
       </div>
-      <div>
+      <div id="money-coach" className="scroll-mt-24">
         <Chat
           persona="teen"
           memberId={teen.id}
@@ -627,6 +708,7 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
           intro={`Hey ${teen.name}! Ask me about your umbrella fund, what's covered, or how to save for something.`}
           suggestions={["How much is in my umbrella fund?", "Is a cracked screen covered?", "How long to save $60?"]}
         />
+      </div>
       </div>
     </div>
   );

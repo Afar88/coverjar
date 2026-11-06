@@ -8,3 +8,33 @@
 body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
+
+
+:root {
+  color-scheme: light;
+  background: #f7f8fa;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(ellipse at 12% 0%, rgba(16, 185, 129, 0.055), transparent 34rem),
+    #f7f8fa;
+  color: #172033;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(16, 185, 129, 0.18);
+}
+
+button, input, select, textarea {
+  font: inherit;
+}
+
+:focus-visible {
+  outline-offset: 2px;
+}
