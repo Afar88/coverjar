@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "Unknown teen profile." }, { status: 404 });
   }
 
-  const updated = await setAllowance(memberId,cents,session.familyId;
+  const updated = await setAllowance(memberId,cents,session.familyId);
   if (updated !== 1) {
     return Response.json({ error: "The allowance could not be saved. Refresh and try again." }, { status: 409 });
   }
