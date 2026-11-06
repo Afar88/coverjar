@@ -19,7 +19,12 @@ export async function POST(req:Request) {
   }
   if(Array.isArray(b.covered))patch.covered=b.covered.map(String).filter(Boolean);
   if(Array.isArray(b.excluded))patch.excluded=b.excluded.map(String).filter(Boolean);
-  if(typeof b.repair_shop_email==="string")patch.repair_shop_email=b.repair_shop_email.trim();
+  if(typeof b.repair_shop_email==="string"){
+    const email=b.repair_shop_email.trim();
+    if(email.length>254 || (email!=="" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))
+      return Response.json({error:"Enter a valid repair-shop PayPal email, or leave it blank until one is available."},{status:400});
+    patch.repair_shop_email=email;
+  }
   if(b.allowances&&typeof b.allowances==="object"&&!Array.isArray(b.allowances)){
     for(const [id,value] of Object.entries(b.allowances)){const cents=toCents(value);if(cents>=0)await setAllowance(id,cents,session.familyId);}
   }
