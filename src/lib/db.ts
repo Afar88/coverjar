@@ -10,12 +10,12 @@ export type Rules = {
   covered: string[]; excluded: string[]; repair_shop_email: string;
 };
 export type LedgerEntry = {
-  id: number; member_id: string; bucket: "spend" | "jar"; amount_cents: number;
+  id: number; member_id: string; family_id?:string; bucket: "spend" | "jar"; amount_cents: number;
   kind: string; memo: string; paypal_ref: string | null; created_at: string;
 };
 export type ClaimStatus = "pending_parent" | "payout_pending" | "payout_failed" | "paid" | "denied";
 export type Claim = {
-  id: number; member_id: string; title: string; description: string; amount_cents: number;
+  id: number; member_id: string; family_id?:string; title: string; description: string; amount_cents: number;
   photo_file: string | null; photo_mime: string | null; status: ClaimStatus; ai: string | null;
   payout_cents: number | null; payee_email: string | null; paypal_ref: string | null;
   parent_note: string | null; created_at: string; decided_at: string | null;
