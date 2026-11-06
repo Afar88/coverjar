@@ -1,8 +1,9 @@
 import { createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
-import { promisify } from "node:util";
 import { getFamilyByCode, getFamilyMember, getMember, queryRows } from "@/lib/db";
 
-const scrypt=promisify(scryptCallback);
+const scryptAsync=(password:string,salt:Buffer,keylen:number,options:{N:number;r:number;p:number;maxmem:number})=>new Promise<Buffer>((resolve,reject)=>{
+  scryptCallback(password,salt,keylen,options,(error,derived)=>error?reject(error):resolve(derived as Buffer));
+});
 
 export type Session = { role: "parent" | "teen"; memberId: string; familyId: string; expiresAt: number };
 const COOKIE = "paraguas_session";
@@ -59,7 +60,7 @@ export async function verifyLogin(role:Session["role"],memberId:string,pin:strin
 const HASH_N=16384;
 export async function hashSecret(secretValue:string) {
   const salt=randomBytes(16);
-  const derived=await scrypt(secretValue,salt,64,{N:HASH_N,r:8,p:1,maxmem:64*1024*1024}) as Buffer;
+  const derived=await scryptAsync(secretValue,salt,64,{N:HASH_N,r:8,p:1,maxmem:64*1024*1024});
   return `scrypt$${HASH_N}$8$1$${salt.toString("base64url")}$${derived.toString("base64url")}`;
 }
 export async function verifySecret(secretValue:string,encoded:string|null|undefined) {
@@ -68,7 +69,7 @@ export async function verifySecret(secretValue:string,encoded:string|null|undefi
     const [scheme,n,r,p,saltText,keyText]=encoded.split("$");
     if(scheme!=="scrypt"||Number(n)!==HASH_N||Number(r)!==8||Number(p)!==1||!saltText||!keyText)return false;
     const expected=Buffer.from(keyText,"base64url");
-    const actual=await scrypt(secretValue,Buffer.from(saltText,"base64url"),expected.length,{N:HASH_N,r:8,p:1,maxmem:64*1024*1024}) as Buffer;
+    const actual=await scryptAsync(secretValue,Buffer.from(saltText,"base64url"),expected.length,{N:HASH_N,r:8,p:1,maxmem:64*1024*1024});
     return expected.length===actual.length&&timingSafeEqual(expected,actual);
   } catch { return false; }
 }
