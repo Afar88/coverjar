@@ -18,7 +18,7 @@ export async function settlePayment(orderId:string,captureId:string,amount:Captu
     }
     const teen=await getMember(p.member_id,client,p.family_id);
     if(!teen||teen.role!=="teen")throw new Error("Payment is linked to an invalid teen account");
-    const updated=await queryRows("UPDATE payments SET status='COMPLETED' WHERE order_id=$1 AND status='CREATED' RETURNING order_id",[orderId],client);
+    const updated=await queryRows("UPDATE payments SET status='COMPLETED' WHERE order_id=$1 AND family_id=$2 AND status='CREATED' RETURNING order_id",[orderId,familyId],client);
     if(!updated.length)throw new Error("Payment is not eligible for settlement");
     if(p.method==="streak_bonus"){
       const award=await queryRows("UPDATE streak_bonus_awards SET status='COMPLETED' WHERE order_id=$1 AND family_id=$2 AND status='PENDING' RETURNING order_id",[orderId,p.family_id],client);
