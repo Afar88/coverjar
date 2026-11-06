@@ -42,8 +42,8 @@ Required:
 - `DATABASE_URL`: pooled Neon PostgreSQL connection string.
 - `BLOB_READ_WRITE_TOKEN`: token from the private Blob store.
 - `PARAGUAS_SESSION_SECRET`: cryptographically random secret with at least 32 characters.
-- `PARAGUAS_PARENT_PIN`: private 4–12 digit parent passcode.
-- `PARAGUAS_TEEN_PIN`: a different private 4–12 digit teen passcode.
+- Parent passwords are selected during family registration and stored as scrypt hashes in Neon.
+- Teen PINs are created by the parent for each teen and stored as scrypt hashes in Neon.
 - `GEMINI_API_KEY`: Google AI Studio API key.
 - `PAYPAL_CLIENT_ID`
 - `PAYPAL_CLIENT_SECRET`
@@ -51,6 +51,7 @@ Required:
 - `PAYPAL_WEBHOOK_ID`: the webhook ID from the same PayPal REST app/environment.
 
 Optional:
+- `PARAGUAS_PARENT_PIN` and `PARAGUAS_TEEN_PIN`: legacy single-family/demo login fallback only; new family accounts do not use these shared environment PINs.
 - `GEMINI_MODEL`
 - `GEMINI_FALLBACK_MODELS`
 - `DEMO_PARENT_EMAIL`
