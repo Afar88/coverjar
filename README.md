@@ -8,7 +8,8 @@ Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 
 ## How to test in 2 minutes
 
-**App:** [Open Paraguas](https://paraguas-sigma.vercel.app)
+**Preview for this PR:** [Open the current verification build](https://paraguas-git-fix-family-iso-d8dbde-destinymomobu-2325s-projects.vercel.app)  
+**Production domain:** [paraguas-sigma.vercel.app](https://paraguas-sigma.vercel.app) — still serves the current `main` deployment; it does not include this PR yet.
 
 **Login:** There is no shared production demo account. Select **Create a family**, register a parent with a password, and save the generated family code. The local-only demo passcodes are `2468` (parent) and `1357` (teen); they are not production credentials.
 
