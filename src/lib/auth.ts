@@ -81,7 +81,7 @@ export async function verifyFamilyLogin(role:Session["role"],familyCode:string,c
     if(!await verifySecret(credential,family.password_hash))return null;
     return {familyId:family.id,memberId:`parent_${family.id}`};
   }
-  if(!memberId||!/^\\d{4,12}$/.test(credential))return null;
+  if(!memberId||!/^\d{4,12}$/.test(credential))return null;
   const member=await getFamilyMember(memberId,family.id);
   if(!member||member.role!=="teen")return null;
   const [row]=await queryRows<{pin_hash:string|null}>("SELECT pin_hash FROM members WHERE id=$1 AND family_id=$2",[memberId,family.id]);
