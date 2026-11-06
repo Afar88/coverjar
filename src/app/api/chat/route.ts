@@ -67,9 +67,8 @@ export async function POST(req:Request) {
     }
     return Response.json({text:response.result.text,tools:[...new Set(used)]}, { headers: { "Cache-Control": "no-store" } });
   } catch(e) {
-    const message = e instanceof Error ? e.message : "The assistant is temporarily unavailable.";
-    console.error("Paraguas chat request failed:", message);
-    return Response.json({error:message},{status:504,headers:{"Cache-Control":"no-store"}});
+    console.error("Paraguas chat request failed:", e);
+    return Response.json({error:"The assistant is temporarily unavailable. Please try again."},{status:502,headers:{"Cache-Control":"no-store"}});
   } finally {
     if (timeout) clearTimeout(timeout);
   }
