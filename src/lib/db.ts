@@ -278,11 +278,10 @@ export async function recordMockSubscriptionPayment(subscriptionId:string) {
 }
 
 export type StreakStatus={weeks:number;bonusCents:number;eligible:boolean;alreadyMatched:boolean;endWeek:string|null};
-export async function getStreakStatus(memberId:string,executor?:Queryable):Promise<StreakStatus> {
+export async function getStreakStatus(memberId:string,executor?:Queryable,familyId="legacy-family"):Promise<StreakStatus> {
   const rows=await queryRows<{week_start:string;contributed:number}>(
     `SELECT date_trunc('week',created_at AT TIME ZONE 'UTC')::date::text AS week_start,SUM(amount_cents)::int AS contributed
-     FROM ledger WHERE member_id=$1 AND bucket='jar' AND kind='allowance' AND amount_cents>0
-     GROUP BY 1 ORDER BY 1 DESC LIMIT 52`,[memberId],executor);
+     FROM ledger WHERE member_id=$1 AND family_id=$2 AND bucket='jar' AND kind='allowance' AND amount_cents>0\n     GROUP BY 1 ORDER BY 1 DESC LIMIT 52`,[memberId,familyId],executor);
   if(!rows.length) return {weeks:0,bonusCents:0,eligible:false,alreadyMatched:false,endWeek:null};
   const latest=new Date(rows[0].week_start+"T00:00:00Z");
   const now=new Date(); const monday=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()));
@@ -294,7 +293,7 @@ export async function getStreakStatus(memberId:string,executor?:Queryable):Promi
   const match=await queryRows("SELECT 1 FROM streak_bonus_awards WHERE member_id=$1 AND streak_end_week=$2 AND status IN ('PENDING','COMPLETED')",[memberId,endWeek],executor);
   const alreadyMatched=match.length>0; const eligible=weeks>=4&&!alreadyMatched;
   const contributed=rows.slice(0,4).reduce((sum,row)=>sum+Number(row.contributed),0);
-  const bonusCents=eligible?Math.round(contributed*(await getRules(executor)).streak_bonus_percent/100):0;
+  const bonusCents=eligible?Math.round(contributed*(await getRules(executor,familyId)).streak_bonus_percent/100):0;
   return {weeks,bonusCents,eligible,alreadyMatched,endWeek};
 }
 export async function reserveStreakBonus(memberId:string,endWeek:string,orderId:string,amountCents:number,executor?:Queryable) {
