@@ -1,6 +1,7 @@
-import { setAllowance, updateRules, type Rules } from "@/lib/db";
+import { queryRows, setAllowance, updateRules, type Rules } from "@/lib/db";
 import { toCents } from "@/lib/money";
 import { requireRole } from "@/lib/auth";
+import { isValidPayoutRecipientEmail } from "@/lib/paypal";
 
 export async function POST(req:Request) {
   const session=requireRole(req,"parent");
@@ -21,9 +22,17 @@ export async function POST(req:Request) {
   if(Array.isArray(b.excluded))patch.excluded=b.excluded.map(String).filter(Boolean);
   if(typeof b.repair_shop_email==="string"){
     const email=b.repair_shop_email.trim();
-    if(email.length>254 || (email!=="" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))
-      return Response.json({error:"Enter a valid repair-shop PayPal email, or leave it blank until one is available."},{status:400});
+    if(email!=="" && !isValidPayoutRecipientEmail(email))
+      return Response.json({error:"Enter a real repair-shop PayPal email, not a demo or example address."},{status:400});
     patch.repair_shop_email=email;
+  }
+  if(typeof b.parent_payout_email==="string"){
+    const email=b.parent_payout_email.trim();
+    if(email!=="" && !isValidPayoutRecipientEmail(email))
+      return Response.json({error:"Enter a real parent PayPal email, not a demo or example address."},{status:400});
+    const parentId=session.familyId==="legacy-family"?"parent":`parent_${session.familyId}`;
+    const updated=await queryRows("UPDATE members SET payout_email=$1 WHERE id=$2 AND family_id=$3 AND role='parent' RETURNING id",[email||null,parentId,session.familyId]);
+    if(!updated.length)return Response.json({error:"Parent account is missing."},{status:404});
   }
   if(b.allowances&&typeof b.allowances==="object"&&!Array.isArray(b.allowances)){
     for(const [id,value] of Object.entries(b.allowances)){const cents=toCents(value);if(cents>=0)await setAllowance(id,cents,session.familyId);}
