@@ -2,23 +2,17 @@ import { getMember, saveSubscription } from "@/lib/db";
 import { createAllowanceSubscription } from "@/lib/paypal";
 import { requireRole } from "@/lib/auth";
 
-export async function POST(req: Request) {
-  const session = requireRole(req, "parent");
-  if (!session) return Response.json({ error: "Parent access required" }, { status: 403 });
-  const { memberId } = await req.json();
-  const teen = getMember(memberId);
-  if (!teen || teen.role !== "teen") return Response.json({ error: "Unknown teen" }, { status: 400 });
-  const origin = new URL(req.url).origin;
+export async function POST(req:Request) {
+  const session=requireRole(req,"parent");
+  if(!session)return Response.json({error:"Parent access required"},{status:403});
+  let body:{memberId?:string};
+  try{body=await req.json();}catch{return Response.json({error:"Invalid request body"},{status:400});}
+  const teen=await getMember(String(body.memberId||""));
+  if(!teen||teen.role!=="teen")return Response.json({error:"Unknown teen"},{status:400});
+  const origin=new URL(req.url).origin;
   try {
-    const sub = await createAllowanceSubscription({
-      teenName: teen.name,
-      cents: teen.allowance_cents,
-      returnUrl: `${origin}/api/subscribe/return?member=${teen.id}`,
-      cancelUrl: `${origin}/?subscribe=cancelled`,
-    });
-    saveSubscription(sub.id, teen.id, teen.allowance_cents);
+    const sub=await createAllowanceSubscription({teenName:teen.name,cents:teen.allowance_cents,returnUrl:`${origin}/api/subscribe/return?member=${teen.id}`,cancelUrl:`${origin}/?subscribe=cancelled`});
+    await saveSubscription(sub.id,teen.id,teen.allowance_cents);
     return Response.json(sub);
-  } catch (e) {
-    return Response.json({ error: (e as Error).message }, { status: 502 });
-  }
+  } catch(e){return Response.json({error:(e as Error).message},{status:502});}
 }

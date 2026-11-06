@@ -1,50 +1,33 @@
-import { creditAllowance, getDb, getMember } from "@/lib/db";
+import { creditAllowance, getMember, withTransaction } from "@/lib/db";
+import { queryRows } from "@/lib/db";
 
-type Payment = { order_id: string; member_id: string; amount_cents: number; method: string; status: string };
-type CapturedAmount = { value: string; currencyCode: string } | null;
+type Payment={order_id:string;member_id:string;amount_cents:number;method:string;status:string};
+type CapturedAmount={value:string;currencyCode:string}|null;
 
-/**
- * Atomically marks a verified PayPal order complete and credits both allowance
- * buckets. The amount is checked against the server-created order before any
- * ledger write, including when settlement is initiated by a crypto return URL.
- */
-export function settlePayment(orderId: string, captureId: string, amount: CapturedAmount = null) {
-  const d = getDb();
-  const settle = d.transaction(() => {
-    const p = d.prepare("SELECT * FROM payments WHERE order_id = ?").get(orderId) as Payment | undefined;
-    if (!p) throw new Error("Unknown order");
-    if (p.status === "COMPLETED") return { alreadySettled: true, payment: p };
-
-    if (!orderId.startsWith("MOCK-")) {
-      const value = amount?.value;
-      const currency = amount?.currencyCode;
-      const validValue = typeof value === "string" && /^(0|[1-9]\d*)\.\d{2}$/.test(value);
-      const capturedCents = validValue ? Number(value.replace(".", "")) : NaN;
-      if (currency !== "USD" || !Number.isSafeInteger(capturedCents) || capturedCents !== p.amount_cents) {
-        throw new Error("Captured amount or currency does not match the original order");
-      }
+/** Atomically settle a verified PayPal order and credit the correct ledger buckets once. */
+export async function settlePayment(orderId:string,captureId:string,amount:CapturedAmount=null) {
+  return withTransaction(async client=>{
+    const [p]=await queryRows<Payment>("SELECT * FROM payments WHERE order_id=$1 FOR UPDATE",[orderId],client);
+    if(!p)throw new Error("Unknown order");
+    if(p.status==="COMPLETED")return {alreadySettled:true,payment:p};
+    if(!orderId.startsWith("MOCK-")){
+      const value=amount?.value; const currency=amount?.currencyCode;
+      const valid=typeof value==="string"&&/^(0|[1-9]\d*)\.\d{2}$/.test(value);
+      const captured=valid?Number(value!.replace(".","")):NaN;
+      if(currency!=="USD"||!Number.isSafeInteger(captured)||captured!==p.amount_cents)throw new Error("Captured amount or currency does not match the original order");
     }
-
-    const teen = getMember(p.member_id);
-    if (!teen || teen.role !== "teen") throw new Error("Payment is linked to an invalid teen account");
-
-    const res = d.prepare("UPDATE payments SET status = 'COMPLETED' WHERE order_id = ? AND status = 'CREATED'").run(orderId);
-    if (res.changes === 0) {
-      const latest = d.prepare("SELECT * FROM payments WHERE order_id = ?").get(orderId) as Payment | undefined;
-      if (latest?.status === "COMPLETED") return { alreadySettled: true, payment: latest };
-      throw new Error("Payment is not eligible for settlement");
+    const teen=await getMember(p.member_id,client);
+    if(!teen||teen.role!=="teen")throw new Error("Payment is linked to an invalid teen account");
+    const updated=await queryRows("UPDATE payments SET status='COMPLETED' WHERE order_id=$1 AND status='CREATED' RETURNING order_id",[orderId],client);
+    if(!updated.length)throw new Error("Payment is not eligible for settlement");
+    if(p.method==="streak_bonus"){
+      const award=await queryRows("UPDATE streak_bonus_awards SET status='COMPLETED' WHERE order_id=$1 AND status='PENDING' RETURNING order_id",[orderId],client);
+      if(!award.length)throw new Error("Saving streak match reservation is missing or already settled");
+      await client.query("INSERT INTO ledger(member_id,bucket,amount_cents,kind,memo,paypal_ref) VALUES($1,'jar',$2,'bonus','Parent-funded saving streak match',$3)",[teen.id,p.amount_cents,captureId]);
+      return {alreadySettled:false,payment:{...p,status:"COMPLETED"},split:{spend:0,jar:p.amount_cents}};
     }
-
-    if (p.method === "streak_bonus") {
-      const award = d.prepare("UPDATE streak_bonus_awards SET status = ? WHERE order_id = ? AND status = ?").run("COMPLETED", orderId, "PENDING");
-      if (!award.changes) throw new Error("Saving streak match reservation is missing or already settled");
-      d.prepare("INSERT INTO ledger (member_id, bucket, amount_cents, kind, memo, paypal_ref) VALUES (?, ?, ?, ?, ?, ?)")
-        .run(teen.id, "jar", p.amount_cents, "bonus", "Parent-funded saving streak match", captureId);
-      return { alreadySettled: false, payment: { ...p, status: "COMPLETED" }, split: { spend: 0, jar: p.amount_cents } };
-    }
-    const label = p.method === "crypto" ? "Allowance top-up (paid with crypto/PYUSD)" : "Allowance top-up via PayPal";
-    const split = creditAllowance(teen.id, p.amount_cents, captureId, label);
-    return { alreadySettled: false, payment: { ...p, status: "COMPLETED" }, split };
+    const label=p.method==="crypto"?"Allowance top-up (paid with crypto/PYUSD)":"Allowance top-up via PayPal";
+    const split=await creditAllowance(teen.id,p.amount_cents,captureId,label,client);
+    return {alreadySettled:false,payment:{...p,status:"COMPLETED"},split};
   });
-  return settle();
 }
