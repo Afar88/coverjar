@@ -322,6 +322,8 @@ export async function recordMockSubscriptionPayment(subscriptionId:string,family
 
 export type StreakStatus={weeks:number;bonusCents:number;eligible:boolean;alreadyMatched:boolean;endWeek:string|null};
 export async function getStreakStatus(memberId:string,familyId:string,executor?:Queryable):Promise<StreakStatus> {
+  const hasContributions=await queryRows("SELECT 1 FROM ledger WHERE member_id=$1 AND family_id=$2 AND bucket='jar' AND kind='allowance' AND amount_cents>0 LIMIT 1",[memberId,familyId],executor);
+  if(!hasContributions.length)return {weeks:0,bonusCents:0,eligible:false,alreadyMatched:false,endWeek:null};
   const rows=await queryRows<{week_start:string;contributed:number}>(
     `SELECT date_trunc('week',created_at AT TIME ZONE 'UTC')::date::text AS week_start,SUM(amount_cents)::int AS contributed
      FROM ledger WHERE member_id=$1 AND family_id=$2 AND bucket='jar' AND kind='allowance' AND amount_cents>0\n     GROUP BY 1 ORDER BY 1 DESC LIMIT 52`,[memberId,familyId],executor);
