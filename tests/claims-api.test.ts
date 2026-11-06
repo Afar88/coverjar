@@ -10,9 +10,11 @@ test("claim routes preserve role checks, private-photo ownership and payout deci
   const {createSession,sessionCookie}=await import("../src/lib/auth");
   const {POST:submitClaim}=await import("../src/app/api/claims/route");
   const {POST:decideClaim}=await import("../src/app/api/claims/[id]/decide/route");
+  const {POST:reconcileClaim}=await import("../src/app/api/claims/[id]/reconcile/route");
   const teenCookie=sessionCookie(createSession("teen","tobi")).split(";")[0];
   const otherTeenCookie=sessionCookie(createSession("teen","zara")).split(";")[0];
   const parentCookie=sessionCookie(createSession("parent","parent")).split(";")[0];
+  const otherFamilyParentCookie=sessionCookie(createSession("parent","parent_other","family-other")).split(";")[0];
   const submit=(cookie?:string,photoPath?:string)=>{
     const form=new FormData();form.set("title","Cracked phone screen");form.set("description","The screen cracked after it fell.");form.set("amount","50.00");
     if(photoPath)form.set("photoPath",photoPath);
@@ -41,6 +43,16 @@ test("claim routes preserve role checks, private-photo ownership and payout deci
       assert.equal(teen.status,403);
       const parent=await decideClaim(new Request(`http://localhost/api/claims/${claim.id}/decide`,{method:"POST",headers:{cookie:parentCookie,"content-type":"application/json"},body}),{params:Promise.resolve({id:String(claim.id)})});
       assert.equal(parent.status,400);assert.equal((await db.getClaim(claim.id))?.status,"pending_parent");
+    });
+    await t.test("a different family cannot read or decide another family's claim",async()=>{
+      const claim=await db.insertClaim({member_id:"tobi",family_id:"legacy-family",title:"Private family claim",description:"Must remain private",amount_cents:2000,photo_file:null,photo_mime:null,ai:{}});
+      const request=new Request(`http://localhost/api/claims/${claim.id}/decide`,{method:"POST",headers:{cookie:otherFamilyParentCookie,"content-type":"application/json"},body:JSON.stringify({decision:"deny"})});
+      const response=await decideClaim(request,{params:Promise.resolve({id:String(claim.id)})});
+      assert.equal(response.status,404);
+      assert.equal((await db.getClaim(claim.id,"legacy-family"))?.status,"pending_parent");
+      await db.queryRows("UPDATE claims SET status='payout_pending',payout_cents=500,payee_email='repair@example.test' WHERE id=$1",[claim.id]);
+      const reconcile=await reconcileClaim(new Request(`http://localhost/api/claims/${claim.id}/reconcile`,{method:"POST",headers:{cookie:otherFamilyParentCookie}}),{params:Promise.resolve({id:String(claim.id)})});
+      assert.equal(reconcile.status,404);
     });
     await t.test("settles an approved simulated payout once",async()=>{
       const claim=await db.insertClaim({member_id:"tobi",title:"Approved repair",description:"Test",amount_cents:2000,photo_file:null,photo_mime:null,ai:{}});
