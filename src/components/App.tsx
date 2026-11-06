@@ -510,6 +510,7 @@ function RulesCard({ state, onDone, onError }: { state: AppState } & Handlers) {
     streak_bonus_percent: String(r.streak_bonus_percent),
     deductible: (r.deductible_cents / 100).toFixed(2),
     max_payout: (r.max_payout_cents / 100).toFixed(2),
+    repair_shop_email: r.repair_shop_email || "",
     covered: r.covered.join("\n"),
     excluded: r.excluded.join("\n"),
   });
@@ -521,6 +522,7 @@ function RulesCard({ state, onDone, onError }: { state: AppState } & Handlers) {
         streak_bonus_percent: form.streak_bonus_percent,
         deductible: form.deductible,
         max_payout: form.max_payout,
+        repair_shop_email: form.repair_shop_email.trim(),
         covered: form.covered.split("\n").map((s) => s.trim()).filter(Boolean),
         excluded: form.excluded.split("\n").map((s) => s.trim()).filter(Boolean),
       });
@@ -545,6 +547,11 @@ function RulesCard({ state, onDone, onError }: { state: AppState } & Handlers) {
           Streak match %<input className={inputCls} value={form.streak_bonus_percent} onChange={set("streak_bonus_percent")} inputMode="numeric" />
         </label>
       </div>
+      <label className="mt-3 block text-xs text-slate-500">
+        Repair-shop PayPal email
+        <input className={inputCls} type="email" value={form.repair_shop_email} onChange={set("repair_shop_email")} placeholder="repairs@example.com" />
+        <span className="mt-1 block text-[11px] text-slate-500">Use the real PayPal email that should receive approved repair payments. Payouts are blocked until this is configured.</span>
+      </label>
       <label className="mt-3 block text-xs text-slate-500">
         Covered (one per line)
         <textarea className={`${inputCls} h-24`} value={form.covered} onChange={set("covered")} />
