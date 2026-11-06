@@ -1,6 +1,6 @@
 import { generateText, stepCountIs, tool, type ModelMessage, type Tool } from "ai";
 import { z } from "zod";
-import { balances, consumeRateLimit, familySnapshot, getClaims, getLedger, getMember, getRules, updateRules } from "@/lib/db";
+import { balances, consumeRateLimit, familySnapshot, getClaims, getLedger, getMember, getRules } from "@/lib/db";
 import { geminiConfigured, withGemini } from "@/lib/gemini";
 import { getPaypalSubscription, listPaypalTransactions } from "@/lib/paypal";
 import { requireRole } from "@/lib/auth";
@@ -38,15 +38,10 @@ export async function POST(req:Request) {
       family_rules:tool({description:"What the umbrella fund covers and its limits",inputSchema:z.object({}),execute:async()=>getRules(undefined,session.familyId)}),
     };
   } else {
-    system="You are Paraguas's assistant for the parent. You help run the family umbrella fund and the PayPal side of it. Amounts in the app database are in cents; PayPal amounts are in dollars. Be concise. Before changing family rules, state the change you're making. You can use read-only PayPal tools to look up recent transactions and subscription status. Never claim to create or send an invoice.";
+    system="You are Paraguas's assistant for the parent. You help run the family umbrella fund and the PayPal side of it. Amounts in the app database are in cents; PayPal amounts are in dollars. Be concise. You may explain suggested family-rule changes, but you cannot change rules or financial settings. Direct the parent to the Family rules screen to review and save changes themselves. You can use read-only PayPal tools to look up recent transactions and subscription status. Never claim to create or send an invoice.";
     tools={
       family_snapshot:tool({description:"Teens, their balances (cents) and the family rules",inputSchema:z.object({}),execute:async()=>familySnapshot(session.familyId)}),
       list_claims:tool({description:"All claims with status and AI assessment",inputSchema:z.object({}),execute:async()=>(await getClaims(undefined,session.familyId)).map(c=>({...c,ai:c.ai?JSON.parse(c.ai):null}))}),
-      update_jar_rules:tool({description:"Change the jar percentage, deductible or max payout",inputSchema:z.object({jar_percent:z.number().int().min(0).max(100).optional(),deductible_dollars:z.number().min(0).optional(),max_payout_dollars:z.number().min(0).optional()}),execute:async a=>updateRules({
-        ...(a.jar_percent!==undefined?{jar_percent:a.jar_percent}:{}),
-        ...(a.deductible_dollars!==undefined?{deductible_cents:Math.round(a.deductible_dollars*100)}:{}),
-        ...(a.max_payout_dollars!==undefined?{max_payout_cents:Math.round(a.max_payout_dollars*100)}:{}),
-      },session.familyId)}),
       paypal_recent_transactions:tool({description:"List the most recent PayPal transactions for the connected merchant account",inputSchema:z.object({days:z.number().int().min(1).max(90).default(7)}),execute:async({days})=>{try{return await listPaypalTransactions(days)}catch{return {unavailable:true,message:"PayPal transaction lookup is temporarily unavailable. You can still ask me about family balances and claims."}}}}),
       paypal_subscription_status:tool({description:"Look up the status and next billing date of a PayPal subscription using its subscription ID",inputSchema:z.object({subscription_id:z.string().min(5).max(128)}),execute:async({subscription_id})=>{try{return await getPaypalSubscription(subscription_id)}catch{return {unavailable:true,message:"PayPal subscription lookup is temporarily unavailable. Please check the subscription in PayPal and try again."}}}}),
     };

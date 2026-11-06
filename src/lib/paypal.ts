@@ -6,6 +6,17 @@ export const paypalConfigured = Boolean(clientId && clientSecret);
 export const paypalBaseUrl = isLive ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
 export const publicClientId = clientId;
 export const cryptoEnabled = process.env.PAYPAL_CRYPTO_ENABLED === "true";
+/** Reject malformed and reserved example/test addresses before any payout request. */
+export function isValidPayoutRecipientEmail(email: unknown): email is string {
+  if (typeof email !== "string" || email.length > 254) return false;
+  const value = email.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return false;
+  const domain = value.split("@")[1].toLowerCase();
+  return domain !== "localhost" &&
+    domain !== "example.com" && !domain.endsWith(".example.com") &&
+    !domain.endsWith(".test") && !domain.endsWith(".invalid");
+}
+
 
 let cachedToken: { value: string; expires: number } | null = null;
 
@@ -154,19 +165,10 @@ export async function sendPayout(opts: { email: string; cents: number; note: str
   }
   const batchId = res.batch_header?.payout_batch_id;
   if (!batchId) throw new Error("PayPal did not return a payout batch reference");
-  let status = res.batch_header.batch_status;
-  try {
-    const firstCheck = await getPayoutStatus(batchId, opts.itemId);
-    status = firstCheck.batchStatus === "SUCCESS" ? firstCheck.itemStatus : firstCheck.batchStatus;
-  } catch { return { batchId, status: "UNKNOWN" }; }
-  for (let i = 0; i < 6 && (status === "PENDING" || status === "PROCESSING"); i++) {
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    try {
-      const check = await getPayoutStatus(batchId, opts.itemId);
-      status = check.batchStatus === "SUCCESS" ? check.itemStatus : check.batchStatus;
-    } catch { return { batchId, status: "UNKNOWN" }; }
-  }
-  return { batchId, status };
+  // Return the PayPal batch reference immediately. Polling belongs in the
+  // explicit reconciliation endpoint, not the approval request: waiting here
+  // can exceed a serverless function's execution window and leave the UI stuck.
+  return { batchId, status: "PENDING" };
 }
 
 export async function getPayoutStatus(batchId: string, itemId: string) {

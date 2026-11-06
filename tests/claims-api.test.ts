@@ -73,6 +73,7 @@ test("claim routes preserve role checks, private-photo ownership and payout deci
     });
     await t.test("settles an approved simulated payout once",async()=>{
       const claim=await db.insertClaim({member_id:"tobi",title:"Approved repair",description:"Test",amount_cents:2000,photo_file:null,photo_mime:null,ai:{}});
+      await db.queryRows("UPDATE members SET payout_email=$1 WHERE id=$2 AND family_id=$3",["parent@gmail.com","parent","legacy-family"]);
       const before=(await db.balances("tobi")).jar;
       const response=await decideClaim(new Request(`http://localhost/api/claims/${claim.id}/decide`,{method:"POST",headers:{cookie:parentCookie,"content-type":"application/json"},body:JSON.stringify({decision:"approve",amount:"10.00",payee:"parent"})}),{params:Promise.resolve({id:String(claim.id)})});
       assert.equal(response.status,200);assert.equal((await db.getClaim(claim.id))?.status,"paid");
