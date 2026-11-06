@@ -52,12 +52,17 @@ export default function App() {
 
   useEffect(() => {
     let alive = true;
+    if(!familyCode){setLoginOptions([]);setMemberId("");return;}
+    api<{teens:{id:string;name:string;emoji:string}[]}>(`/api/auth/options?familyCode=${encodeURIComponent(familyCode)}`).then(result=>{if(alive){setLoginOptions(result.teens);setMemberId("");}}).catch(()=>{if(alive)setLoginOptions([]);});
+    return ()=>{alive=false;};
+  },[familyCode]);
+
+  useEffect(() => {
+    let alive = true;
     Promise.all([
       api<{ authenticated: boolean; session: { role: "parent" | "teen"; memberId: string; familyId: string } | null }>("/api/auth/session"),
-      api<{ teens: { id: string; name: string; emoji: string }[] }>("/api/auth/options"),
-    ]).then(async ([auth, options]) => {
+    ]).then(async ([auth]) => {
       if (!alive) return;
-      setLoginOptions(options.teens);
       if (auth.authenticated && auth.session) {
         setSession(auth.session);
         const next = await api<AppState>("/api/state");
@@ -182,6 +187,7 @@ export default function App() {
           <Button variant="secondary" onClick={signOut} disabled={busy}>Log out</Button>
         </div>
       </header>
+      {issuedFamilyCode && session.role==="parent" && <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm">Your family code: <strong className="select-all">{issuedFamilyCode}</strong>. Share this code with your teens so they can sign in.</div>}
       {toast && <div className={`mb-4 rounded-xl px-4 py-3 text-sm ${toast.error ? "bg-rose-50 text-rose-800" : "bg-emerald-50 text-emerald-800"}`}>{toast.msg}</div>}
       {session.role === "parent" ? <ParentView state={state} onDone={onDone} onError={onError} /> :
         current ? <TeenView key={current.id} teen={current} familyId={session.familyId} state={state} onDone={onDone} onError={onError} /> :
@@ -193,12 +199,21 @@ export default function App() {
 type Handlers = { onDone: (m: string) => void; onError: (m: string) => void };
 
 function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) {
+  const [teenName,setTeenName]=useState("");
+  const [teenPin,setTeenPin]=useState("");
+  const [addingTeen,setAddingTeen]=useState(false);
   const teens = state.members.filter((m) => m.role === "teen");
   const pending = state.claims.filter((c) => c.status === "pending_parent");
   const decided = state.claims.filter((c) => c.status !== "pending_parent");
   const names = Object.fromEntries(state.members.map((m) => [m.id, m.name]));
   const totalSpend = teens.reduce((sum, teen) => sum + (teen.balances?.spend ?? 0), 0);
   const totalJar = teens.reduce((sum, teen) => sum + (teen.balances?.jar ?? 0), 0);
+  async function addTeen(e:React.FormEvent) {
+    e.preventDefault();setAddingTeen(true);
+    try { await api("/api/family/teens",{name:teenName,pin:teenPin});setTeenName("");setTeenPin("");onDone("Teen profile created. Share your family code and their PIN with them."); }
+    catch(error){onError((error as Error).message);}
+    finally{setAddingTeen(false);}
+  }
   async function reconcileClaim(id: number) {
     try {
       const result = await api<{ status: string; message?: string }>(`/api/claims/${id}/reconcile`, {});
@@ -207,6 +222,11 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
   }
   return (
     <div className="space-y-5">
+      <form onSubmit={addTeen} className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="min-w-[150px] flex-1"><label className="text-xs font-medium text-slate-600">Add teen name<input className={inputCls+" mt-1"} value={teenName} onChange={e=>setTeenName(e.target.value)} maxLength={80} required placeholder="Teen name" /></label></div>
+        <div className="w-36"><label className="text-xs font-medium text-slate-600">Create PIN<input className={inputCls+" mt-1"} value={teenPin} onChange={e=>setTeenPin(e.target.value)} inputMode="numeric" type="password" minLength={4} maxLength={12} pattern="[0-9]{4,12}" required placeholder="4–12 digits" /></label></div>
+        <Button type="submit" disabled={addingTeen}>{addingTeen?"Adding…":"Add teen"}</Button>
+      </form>
       <section aria-label="Family financial overview" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs font-medium text-slate-500">Teens</p>
