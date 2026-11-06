@@ -112,6 +112,15 @@ async function ensureSchema() {
       ALTER TABLE payments ALTER COLUMN family_id SET NOT NULL;
       ALTER TABLE subscriptions ALTER COLUMN family_id SET NOT NULL;
       ALTER TABLE streak_bonus_awards ALTER COLUMN family_id SET NOT NULL;
+
+      -- Keep legacy single-family API writes compatible until every route is tenant-aware.
+      ALTER TABLE members ALTER COLUMN family_id SET DEFAULT 'legacy-family';
+      ALTER TABLE ledger ALTER COLUMN family_id SET DEFAULT 'legacy-family';
+      ALTER TABLE claims ALTER COLUMN family_id SET DEFAULT 'legacy-family';
+      ALTER TABLE payments ALTER COLUMN family_id SET DEFAULT 'legacy-family';
+      ALTER TABLE subscriptions ALTER COLUMN family_id SET DEFAULT 'legacy-family';
+      ALTER TABLE streak_bonus_awards ALTER COLUMN family_id SET DEFAULT 'legacy-family';
+
       CREATE INDEX IF NOT EXISTS members_family_role_idx ON members(family_id,role,name);
       CREATE INDEX IF NOT EXISTS ledger_family_created_idx ON ledger(family_id,created_at DESC,id DESC);
       CREATE INDEX IF NOT EXISTS claims_family_created_idx ON claims(family_id,id DESC);
