@@ -3,7 +3,8 @@ import { toCents } from "@/lib/money";
 import { requireRole } from "@/lib/auth";
 
 export async function POST(req:Request) {
-  if(!requireRole(req,"parent"))return Response.json({error:"Parent access required"},{status:403});
+  const session=requireRole(req,"parent");
+  if(!session)return Response.json({error:"Parent access required"},{status:403});
   let b:Record<string,unknown>;
   try{b=await req.json();}catch{return Response.json({error:"Invalid request body"},{status:400});}
   const patch:Partial<Rules>={};
@@ -20,7 +21,7 @@ export async function POST(req:Request) {
   if(Array.isArray(b.excluded))patch.excluded=b.excluded.map(String).filter(Boolean);
   if(typeof b.repair_shop_email==="string")patch.repair_shop_email=b.repair_shop_email.trim();
   if(b.allowances&&typeof b.allowances==="object"&&!Array.isArray(b.allowances)){
-    for(const [id,value] of Object.entries(b.allowances)){const cents=toCents(value);if(cents>=0)await setAllowance(id,cents);}
+    for(const [id,value] of Object.entries(b.allowances)){const cents=toCents(value);if(cents>=0)await setAllowance(id,cents,session.familyId);}
   }
-  return Response.json(await updateRules(patch));
+  return Response.json(await updateRules(patch,session.familyId));
 }
