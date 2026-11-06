@@ -16,12 +16,12 @@ export function isMemberClaimPhotoPath(pathname:string,memberId:string) {
 }
 
 /** Read a private Blob by an authenticated member-scoped pathname, never a caller-supplied URL. */
-export async function readClaimPhoto(pathname:string,memberId:string) {
-  if(!isMemberClaimPhotoPath(pathname,memberId))return null;
+export async function readClaimPhoto(pathname:string,memberId:string,familyId="legacy-family") {
+  if(!isMemberClaimPhotoPath(pathname,memberId,familyId))return null;
   return get(pathname,{access:"private"});
 }
 
-export async function deleteClaimPhoto(pathname:string,memberId:string) {
-  if(!isMemberClaimPhotoPath(pathname,memberId))return;
+export async function deleteClaimPhoto(pathname:string,memberId:string,familyId="legacy-family") {
+  if(!isMemberClaimPhotoPath(pathname,memberId,familyId))return;
   await del(pathname);
 }
