@@ -1,6 +1,6 @@
 import { generateText, stepCountIs, tool, type ModelMessage, type Tool } from "ai";
 import { z } from "zod";
-import { balances, familySnapshot, getClaims, getLedger, getMember, getRules, updateRules } from "@/lib/db";
+import { balances, consumeRateLimit, familySnapshot, getClaims, getLedger, getMember, getRules, updateRules } from "@/lib/db";
 import { geminiConfigured, withGemini } from "@/lib/gemini";
 import { getPaypalSubscription, listPaypalTransactions } from "@/lib/paypal";
 import { requireRole } from "@/lib/auth";
@@ -10,6 +10,8 @@ export const maxDuration = 30;
 export async function POST(req:Request) {
   const session=requireRole(req);
   if(!session)return Response.json({error:"Sign in to chat"},{status:401});
+  const rate=await consumeRateLimit(`chat:${session.familyId}:${session.memberId}`,30,60*60*1000);
+  if(!rate.allowed)return Response.json({error:"You have reached the chat limit for now. Please try again later."},{status:429,headers:{"Retry-After":String(rate.retryAfterSeconds),"Cache-Control":"no-store"}});
   let body: { messages?: unknown };
   try { body = await req.json(); } catch {
     return Response.json({ error: "The message could not be read. Please try again." }, { status: 400 });
