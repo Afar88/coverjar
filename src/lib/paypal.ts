@@ -157,8 +157,7 @@ export async function sendPayout(opts: { email: string; cents: number; note: str
   // Return the PayPal batch reference immediately. Polling belongs in the
   // explicit reconciliation endpoint, not the approval request: waiting here
   // can exceed a serverless function's execution window and leave the UI stuck.
-  const status = res.batch_header.batch_status || "PENDING";
-  return { batchId, status };
+  return { batchId, status: "PENDING" };
 }
 
 export async function getPayoutStatus(batchId: string, itemId: string) {
