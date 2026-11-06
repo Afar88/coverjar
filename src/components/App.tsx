@@ -23,7 +23,7 @@ const RETURN_MESSAGES: Record<string, string> = {
 export default function App() {
   const params = useSearchParams();
   const [state, setState] = useState<AppState | null>(null);
-  const [session, setSession] = useState<{ role: "parent" | "teen"; memberId: string } | null>(null);
+  const [session, setSession] = useState<{ role: "parent" | "teen"; memberId: string; familyId: string } | null>(null);
   const [loginOptions, setLoginOptions] = useState<{ id: string; name: string; emoji: string }[]>([]);
   const [role, setRole] = useState<"parent" | "teen">("parent");
   const [memberId, setMemberId] = useState("");
@@ -48,7 +48,7 @@ export default function App() {
   useEffect(() => {
     let alive = true;
     Promise.all([
-      api<{ authenticated: boolean; session: { role: "parent" | "teen"; memberId: string } | null }>("/api/auth/session"),
+      api<{ authenticated: boolean; session: { role: "parent" | "teen"; memberId: string; familyId: string } | null }>("/api/auth/session"),
       api<{ teens: { id: string; name: string; emoji: string }[] }>("/api/auth/options"),
     ]).then(async ([auth, options]) => {
       if (!alive) return;
@@ -159,7 +159,7 @@ export default function App() {
       </header>
       {toast && <div className={`mb-4 rounded-xl px-4 py-3 text-sm ${toast.error ? "bg-rose-50 text-rose-800" : "bg-emerald-50 text-emerald-800"}`}>{toast.msg}</div>}
       {session.role === "parent" ? <ParentView state={state} onDone={onDone} onError={onError} /> :
-        current ? <TeenView key={current.id} teen={current} state={state} onDone={onDone} onError={onError} /> :
+        current ? <TeenView key={current.id} teen={current} familyId={session.familyId} state={state} onDone={onDone} onError={onError} /> :
         <p className="text-sm text-rose-700">Teen profile unavailable. Sign out and sign in again.</p>}
     </div>
   );
@@ -525,7 +525,7 @@ function Ledger({ state, memberId }: { state: AppState; memberId?: string }) {
   );
 }
 
-function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppState } & Handlers) {
+function TeenView({ teen, familyId, state, onDone, onError }: { teen: Member; familyId:string; state: AppState } & Handlers) {
   const b = teen.balances!;
   const claims = state.claims.filter((c) => c.member_id === teen.id);
   const [busy, setBusy] = useState(false);
@@ -551,10 +551,10 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
     }
     setBusy(true);
     try {
-      const blob = await upload(`claims/${teen.id}/${crypto.randomUUID()}${extension}`, photo, {
+      const blob = await upload(`claims/${familyId}/${teen.id}/${crypto.randomUUID()}${extension}`, photo, {
         access: "private",
         handleUploadUrl: "/api/claim-photo/upload",
-        clientPayload: teen.id,
+        clientPayload: JSON.stringify({memberId:teen.id,familyId}),
       });
       fd.delete("photo");
       fd.set("photoPath", blob.pathname);
