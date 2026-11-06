@@ -1,6 +1,6 @@
 import { addLedger, balances, getClaim, getMember, getRules, queryRows, withTransaction } from "@/lib/db";
 import { toCents } from "@/lib/money";
-import { sendPayout } from "@/lib/paypal";
+import { isValidPayoutRecipientEmail, sendPayout } from "@/lib/paypal";
 import { requireRole } from "@/lib/auth";
 
 export async function POST(req:Request,ctx:{params:Promise<{id:string}>}) {
@@ -28,10 +28,7 @@ export async function POST(req:Request,ctx:{params:Promise<{id:string}>}) {
   if(!parent)return Response.json({error:"Parent account is missing"},{status:500});
   const email=body.payee==="parent"?parent.payout_email:rules.repair_shop_email;
   // Never send money to demo placeholders or malformed recipient addresses.
-  const validRecipient=typeof email==="string" &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) &&
-    !/\.(test|invalid|example)$/i.test(email);
-  if(!validRecipient)return Response.json({
+  if(!isValidPayoutRecipientEmail(email))return Response.json({
     error:body.payee==="parent"
       ?"Add a valid PayPal email to the parent account before paying yourself."
       :"Set a real repair-shop PayPal email in Family rules before approving this claim."
