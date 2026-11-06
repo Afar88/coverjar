@@ -30,8 +30,12 @@ let schemaPromise: Promise<void> | null = null;
 
 function getPool() {
   if (pool) return pool;
-  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL must be configured with a Neon PostgreSQL connection string");
-  pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5, idleTimeoutMillis: 10_000, connectionTimeoutMillis: 8_000 }) as unknown as PoolLike;
+  // Neon’s Vercel integration exposes POSTGRES_URL in Production. Keep
+  // DATABASE_URL as the explicit override, but support the managed variable
+  // so deployments do not need to duplicate database credentials.
+  const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  if (!connectionString) throw new Error("DATABASE_URL or POSTGRES_URL must be configured with a Neon PostgreSQL connection string");
+  pool = new Pool({ connectionString, max: 5, idleTimeoutMillis: 10_000, connectionTimeoutMillis: 8_000 }) as unknown as PoolLike;
   return pool;
 }
 
