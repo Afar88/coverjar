@@ -5,9 +5,9 @@ type Payment={order_id:string;member_id:string;family_id:string;amount_cents:num
 type CapturedAmount={value:string;currencyCode:string}|null;
 
 /** Atomically settle a verified PayPal order and credit the correct ledger buckets once. */
-export async function settlePayment(orderId:string,captureId:string,amount:CapturedAmount=null) {
+export async function settlePayment(orderId:string,captureId:string,amount:CapturedAmount,familyId:string) {
   return withTransaction(async client=>{
-    const [p]=await queryRows<Payment>("SELECT * FROM payments WHERE order_id=$1 FOR UPDATE",[orderId],client);
+    const [p]=await queryRows<Payment>("SELECT * FROM payments WHERE order_id=$1 AND family_id=$2 FOR UPDATE",[orderId,familyId],client);
     if(!p)throw new Error("Unknown order");
     if(p.status==="COMPLETED")return {alreadySettled:true,payment:p};
     if(!orderId.startsWith("MOCK-")){
