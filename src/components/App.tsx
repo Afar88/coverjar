@@ -396,6 +396,7 @@ function ParentClaim({ claim, teenName, state, onDone, onError }: { claim: Claim
   const [payee, setPayee] = useState(claim.ai?.payee ?? "repair_shop");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
   async function decide(decision: "approve" | "deny") {
     setBusy(true);
     try {
@@ -412,7 +413,10 @@ function ParentClaim({ claim, teenName, state, onDone, onError }: { claim: Claim
       <div className="mb-3 flex flex-wrap gap-4">
         {claim.photo_file && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={`/api/photos/${claim.id}`} alt="Damage" className="h-28 w-28 rounded-lg object-cover" />
+          <button type="button" onClick={() => setPhotoOpen(true)} className="group relative h-28 w-28 shrink-0 overflow-hidden rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" aria-label="Enlarge claim photo">
+            <img src={`/api/photos/${claim.id}`} alt="Damage reported in claim" className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+            <span className="absolute inset-x-0 bottom-0 bg-slate-950/65 px-1 py-1 text-center text-[10px] font-medium text-white">View photo</span>
+          </button>
         )}
         <div className="min-w-0 flex-1">
           <div className="font-semibold">
@@ -425,6 +429,12 @@ function ParentClaim({ claim, teenName, state, onDone, onError }: { claim: Claim
         </div>
       </div>
       <AiPanel claim={claim} />
+      {photoOpen && claim.photo_file && (
+        <div role="dialog" aria-modal="true" aria-label="Claim photo preview" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4" onClick={() => setPhotoOpen(false)}>
+          <button type="button" className="absolute right-4 top-4 rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg" onClick={() => setPhotoOpen(false)}>Close</button>
+          <img src={`/api/photos/${claim.id}`} alt="Enlarged claim evidence" className="max-h-[85vh] max-w-full rounded-xl object-contain shadow-2xl" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
       <div className="mt-3 flex flex-wrap items-end gap-2">
         <div>
           <label className="block text-xs text-slate-500">Payout ($)</label>
@@ -569,9 +579,18 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
   }
 
   return (
-    <div className="grid items-start gap-5 lg:grid-cols-12 lg:gap-6">
+    <div className="space-y-5">
+      <section aria-label="Your money overview" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><p className="text-xs font-medium text-slate-500">Spending money</p><p className="mt-1 text-xl font-semibold tracking-tight text-slate-950">{fmt(b.spend)}</p></div>
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 shadow-sm"><p className="text-xs font-medium text-emerald-700">Umbrella fund</p><p className="mt-1 text-xl font-semibold tracking-tight text-emerald-900">{fmt(b.jar)}</p></div>
+        <div className="col-span-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:col-span-1"><p className="text-xs font-medium text-slate-500">My claims</p><p className="mt-1 text-xl font-semibold tracking-tight text-slate-950">{claims.length}</p></div>
+      </section>
+      <nav aria-label="Teen dashboard sections" className="sticky top-2 z-20 -mx-1 flex gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white/95 p-2 shadow-sm backdrop-blur sm:mx-0">
+        {[["#teen-money","My money"],["#file-claim","File a claim"],["#my-claims","My claims"],["#teen-activity","Activity"],["#money-coach","Money coach"]].map(([href,label]) => <a key={href} href={href} className="shrink-0 rounded-lg px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-emerald-50 hover:text-emerald-800">{label}</a>)}
+      </nav>
+      <div className="grid items-start gap-5 lg:grid-cols-12 lg:gap-6">
       <div className="space-y-5 lg:col-span-8">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div id="teen-money" className="grid scroll-mt-24 gap-4 sm:grid-cols-2">
           <div className="rounded-2xl bg-slate-900 p-5 text-white">
             <div className="text-sm text-slate-300">Spending money</div>
             <div className="text-3xl font-bold">{fmt(b.spend)}</div>
@@ -599,7 +618,7 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
           )}
         </div>
 
-        <Card title="Something broke? File a claim">
+        <div id="file-claim" className="scroll-mt-24"><Card title="Something broke? File a claim">
           <form onSubmit={fileClaim} className="space-y-3">
             <input name="title" className={inputCls} placeholder="e.g. Cracked phone screen" required />
             <textarea name="description" className={`${inputCls} h-24`} placeholder="What happened? Add details so the AI review can help your parent." required />
@@ -609,10 +628,10 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
             </div>
             <Button type="submit" disabled={busy}>{busy ? "Gemini is reviewing…" : "Send claim"}</Button>
           </form>
-        </Card>
+        </Card></div>
 
         {claims.length > 0 && (
-          <Card title="My claims">
+          <div id="my-claims" className="scroll-mt-24"><Card title="My claims">
             <div className="space-y-3">
               {claims.map((c) => (
                 <div key={c.id} className="rounded-xl border border-slate-200 p-3 text-sm">
@@ -632,11 +651,11 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
                 </div>
               ))}
             </div>
-          </Card>
+          </Card></div>
         )}
-        <Ledger state={state} memberId={teen.id} />
+        <div id="teen-activity" className="scroll-mt-24"><Ledger state={state} memberId={teen.id} /></div>
       </div>
-      <div>
+      <div id="money-coach" className="scroll-mt-24">
         <Chat
           persona="teen"
           memberId={teen.id}
@@ -644,6 +663,7 @@ function TeenView({ teen, state, onDone, onError }: { teen: Member; state: AppSt
           intro={`Hey ${teen.name}! Ask me about your umbrella fund, what's covered, or how to save for something.`}
           suggestions={["How much is in my umbrella fund?", "Is a cracked screen covered?", "How long to save $60?"]}
         />
+      </div>
       </div>
     </div>
   );
