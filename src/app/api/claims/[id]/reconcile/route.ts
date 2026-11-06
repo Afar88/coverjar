@@ -18,12 +18,13 @@ export async function POST(req:Request,ctx:{params:Promise<{id:string}>}) {
       batchId=recovered.batchId;
       await queryRows("UPDATE claims SET paypal_ref=$1 WHERE id=$2 AND family_id=$3 AND status='payout_pending' AND paypal_ref IS NULL RETURNING id",[batchId,claim.id,session.familyId]);
     }catch(error){
-      return Response.json({...await getClaim(claim.id,session.familyId),payoutStatus:"UNKNOWN",message:`Could not recover the original PayPal request yet. Funds remain reserved. Try checking again: ${(error as Error).message}`},{status:202});
+      console.error("Claim payout recovery failed:",error);
+      return Response.json({...await getClaim(claim.id,session.familyId),payoutStatus:"UNKNOWN",message:"Could not recover the PayPal request yet. Funds remain reserved. Try checking again shortly."},{status:202,headers:{"Cache-Control":"no-store"}});
     }
   }
   let status:{batchStatus:string;itemStatus:string};
   try{status=await getPayoutStatus(batchId,`claim-${claim.id}`);}
-  catch(error){return Response.json({error:`Could not check PayPal yet: ${(error as Error).message}`},{status:502});}
+  catch(error){console.error("Claim payout status lookup failed:",error);return Response.json({error:"Could not check PayPal yet. Funds remain reserved; try again shortly."},{status:502,headers:{"Cache-Control":"no-store"}});}
   const succeeded=status.batchStatus==="SUCCESS"&&status.itemStatus==="SUCCESS";
   const failed=["DENIED","CANCELED","CANCELLED"].includes(status.batchStatus)||["FAILED","RETURNED","BLOCKED","REFUNDED"].includes(status.itemStatus);
   if(!succeeded&&!failed)return Response.json({...await getClaim(claim.id,session.familyId),payoutStatus:status.itemStatus,batchStatus:status.batchStatus,message:"PayPal has not confirmed a final outcome. The funds remain reserved; check again shortly."},{status:202});
