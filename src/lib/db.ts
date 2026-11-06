@@ -2,7 +2,7 @@ import { Pool } from "@neondatabase/serverless";
 import { randomBytes, randomUUID } from "node:crypto";
 
 export type Member = {
-  id: string; name: string; role: "parent" | "teen"; age: number | null;
+  id: string; name: string; role: "parent" | "teen"; family_id?: string; age: number | null;
   allowance_cents: number; payout_email: string | null; emoji: string;
 };
 export type Rules = {
@@ -193,102 +193,48 @@ export async function withTransaction<T>(work: (client: Queryable) => Promise<T>
   }
 }
 
-export async function getRules(executor?: Queryable): Promise<Rules> {
-  const [r] = await queryRows<any>("SELECT * FROM rules WHERE id=1", [], executor);
-  if (!r) throw new Error("Family rules are not configured");
-  return { jar_percent:r.jar_percent, deductible_cents:r.deductible_cents, max_payout_cents:r.max_payout_cents,
-    streak_bonus_percent:r.streak_bonus_percent, covered:Array.isArray(r.covered)?r.covered:JSON.parse(r.covered),
-    excluded:Array.isArray(r.excluded)?r.excluded:JSON.parse(r.excluded), repair_shop_email:r.repair_shop_email };
+export async function getRules(executor?:Queryable,familyId="legacy-family"): Promise<Rules> {
+  const [r]=await queryRows<any>("SELECT * FROM family_rules WHERE family_id=$1",[familyId],executor);
+  if(!r) throw new Error("Family rules are not configured");
+  return {jar_percent:r.jar_percent,deductible_cents:r.deductible_cents,max_payout_cents:r.max_payout_cents,
+    streak_bonus_percent:r.streak_bonus_percent,covered:Array.isArray(r.covered)?r.covered:JSON.parse(r.covered),
+    excluded:Array.isArray(r.excluded)?r.excluded:JSON.parse(r.excluded),repair_shop_email:r.repair_shop_email};
 }
-export async function updateRules(patch: Partial<Rules>) {
-  const next={...(await getRules()),...patch};
-  await execute("UPDATE rules SET jar_percent=$1,deductible_cents=$2,max_payout_cents=$3,streak_bonus_percent=$4,covered=$5::jsonb,excluded=$6::jsonb,repair_shop_email=$7 WHERE id=1",
-    [next.jar_percent,next.deductible_cents,next.max_payout_cents,next.streak_bonus_percent,JSON.stringify(next.covered),JSON.stringify(next.excluded),next.repair_shop_email]);
+export async function updateRules(patch:Partial<Rules>,familyId="legacy-family") {
+  const next={...(await getRules(undefined,familyId)),...patch};
+  await execute("UPDATE family_rules SET jar_percent=$1,deductible_cents=$2,max_payout_cents=$3,streak_bonus_percent=$4,covered=$5::jsonb,excluded=$6::jsonb,repair_shop_email=$7 WHERE family_id=$8",
+    [next.jar_percent,next.deductible_cents,next.max_payout_cents,next.streak_bonus_percent,JSON.stringify(next.covered),JSON.stringify(next.excluded),next.repair_shop_email,familyId]);
   return next;
 }
-export async function getMembers(): Promise<Member[]> { return queryRows<Member>("SELECT * FROM members ORDER BY role,name"); }
-export async function getMember(id:string,executor?:Queryable): Promise<Member|undefined> { return (await queryRows<Member>("SELECT * FROM members WHERE id=$1",[id],executor))[0]; }
-export async function getTeens(): Promise<Member[]> { return (await getMembers()).filter(m=>m.role==="teen"); }
-export async function balances(memberId:string, executor?:Queryable) {
-  const rows=await queryRows<{bucket:string;total:number}>("SELECT bucket,COALESCE(SUM(amount_cents),0)::int AS total FROM ledger WHERE member_id=$1 GROUP BY bucket",[memberId],executor);
+export async function getMembers(familyId="legacy-family"): Promise<Member[]> { return queryRows<Member>("SELECT * FROM members WHERE family_id=$1 ORDER BY role,name",[familyId]); }
+export async function getMember(id:string,executor?:Queryable,familyId="legacy-family"): Promise<Member|undefined> { return (await queryRows<Member>("SELECT * FROM members WHERE id=$1 AND family_id=$2",[id,familyId],executor))[0]; }
+export async function getTeens(familyId="legacy-family"): Promise<Member[]> { return (await getMembers(familyId)).filter(m=>m.role==="teen"); }
+export async function balances(memberId:string,executor?:Queryable,familyId="legacy-family") {
+  const rows=await queryRows<{bucket:string;total:number}>("SELECT bucket,COALESCE(SUM(amount_cents),0)::int AS total FROM ledger WHERE member_id=$1 AND family_id=$2 GROUP BY bucket",[memberId,familyId],executor);
   const out={spend:0,jar:0}; for(const r of rows) out[r.bucket as "spend"|"jar"]=Number(r.total); return out;
 }
-export async function addLedger(e:Omit<LedgerEntry,"id"|"created_at">,executor?:Queryable) {
-  await execute("INSERT INTO ledger(member_id,bucket,amount_cents,kind,memo,paypal_ref) VALUES($1,$2,$3,$4,$5,$6)",
-    [e.member_id,e.bucket,e.amount_cents,e.kind,e.memo,e.paypal_ref],executor);
+export async function addLedger(e:Omit<LedgerEntry,"id"|"created_at">,executor?:Queryable,familyId="legacy-family") {
+  await execute("INSERT INTO ledger(member_id,bucket,amount_cents,kind,memo,paypal_ref,family_id) VALUES($1,$2,$3,$4,$5,$6,$7)",
+    [e.member_id,e.bucket,e.amount_cents,e.kind,e.memo,e.paypal_ref,familyId],executor);
 }
-export async function getLedger(memberId?:string,limit=50):Promise<LedgerEntry[]> {
+export async function getLedger(memberId?:string,limit=50,familyId="legacy-family"):Promise<LedgerEntry[]> {
   return memberId
-    ? queryRows<LedgerEntry>("SELECT * FROM ledger WHERE member_id=$1 ORDER BY created_at DESC,id DESC LIMIT $2",[memberId,limit])
-    : queryRows<LedgerEntry>("SELECT * FROM ledger ORDER BY created_at DESC,id DESC LIMIT $1",[limit]);
+    ? queryRows<LedgerEntry>("SELECT * FROM ledger WHERE member_id=$1 AND family_id=$2 ORDER BY created_at DESC,id DESC LIMIT $3",[memberId,familyId,limit])
+    : queryRows<LedgerEntry>("SELECT * FROM ledger WHERE family_id=$1 ORDER BY created_at DESC,id DESC LIMIT $2",[familyId,limit]);
 }
-export async function getClaims(memberId?:string):Promise<Claim[]> {
-  return memberId ? queryRows<Claim>("SELECT * FROM claims WHERE member_id=$1 ORDER BY id DESC",[memberId])
-    : queryRows<Claim>("SELECT * FROM claims ORDER BY id DESC");
+export async function getClaims(memberId?:string,familyId="legacy-family"):Promise<Claim[]> {
+  return memberId ? queryRows<Claim>("SELECT * FROM claims WHERE member_id=$1 AND family_id=$2 ORDER BY id DESC",[memberId,familyId])
+    : queryRows<Claim>("SELECT * FROM claims WHERE family_id=$1 ORDER BY id DESC",[familyId]);
 }
-export async function getClaim(id:number):Promise<Claim|undefined> { return (await queryRows<Claim>("SELECT * FROM claims WHERE id=$1",[id]))[0]; }
+export async function getClaim(id:number,familyId="legacy-family"):Promise<Claim|undefined> { return (await queryRows<Claim>("SELECT * FROM claims WHERE id=$1 AND family_id=$2",[id,familyId]))[0]; }
 
-export async function insertClaim(input:{member_id:string;title:string;description:string;amount_cents:number;photo_file:string|null;photo_mime:string|null;ai:unknown}) {
-  const [claim]=await queryRows<Claim>("INSERT INTO claims(member_id,title,description,amount_cents,photo_file,photo_mime,status,ai) VALUES($1,$2,$3,$4,$5,$6,'pending_parent',$7) RETURNING *",
-    [input.member_id,input.title,input.description,input.amount_cents,input.photo_file,input.photo_mime,JSON.stringify(input.ai)]);
+export async function insertClaim(input:{member_id:string;family_id?:string;title:string;description:string;amount_cents:number;photo_file:string|null;photo_mime:string|null;ai:unknown}) {
+  const [claim]=await queryRows<Claim>("INSERT INTO claims(member_id,family_id,title,description,amount_cents,photo_file,photo_mime,status,ai) VALUES($1,$2,$3,$4,$5,$6,$7,'pending_parent',$8) RETURNING *",
+    [input.member_id,input.family_id||"legacy-family",input.title,input.description,input.amount_cents,input.photo_file,input.photo_mime,JSON.stringify(input.ai)]);
   return claim;
 }
-export async function setAllowance(memberId:string,cents:number) {
-  return execute("UPDATE members SET allowance_cents=$1 WHERE id=$2 AND role='teen'",[cents,memberId]);
-}
-
-export type FamilyAccount = { id:string; code:string; parent_name:string; password_hash:string };
-
-function makeFamilyCode() {
-  const alphabet="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes=randomBytes(8);
-  let code="";
-  for(const byte of bytes) code+=alphabet[byte%alphabet.length];
-  return `FAM-${code.slice(0,4)}-${code.slice(4)}`;
-}
-
-/** Create a family and its parent profile atomically. The caller must hash the password first. */
-export async function createFamilyAccount(parentName:string,passwordHash:string) {
-  const name=parentName.trim().slice(0,80);
-  if(name.length<2||passwordHash.length<40) throw new Error("A valid parent name and password hash are required");
-  return withTransaction(async client=>{
-    const id=randomUUID();
-    let code="";
-    for(let attempt=0;attempt<5;attempt++) {
-      code=makeFamilyCode();
-      const exists=await queryRows("SELECT 1 FROM families WHERE code=$1",[code],client);
-      if(!exists.length) break;
-      code="";
-    }
-    if(!code) throw new Error("Could not generate a family code. Please try again.");
-    await execute("INSERT INTO families(id,code,parent_name,password_hash) VALUES($1,$2,$3,$4)",[id,code,name,passwordHash],client);
-    await execute("INSERT INTO members(id,name,role,age,allowance_cents,payout_email,emoji,family_id) VALUES($1,$2,'parent',NULL,0,NULL,'👨‍👩‍👧',$3)",[`parent_${id}`,name,id],client);
-    await execute(`INSERT INTO family_rules(family_id,jar_percent,deductible_cents,max_payout_cents,streak_bonus_percent,covered,excluded,repair_shop_email)
-      SELECT $1,jar_percent,deductible_cents,max_payout_cents,streak_bonus_percent,covered,excluded,repair_shop_email FROM rules WHERE id=1
-      ON CONFLICT(family_id) DO NOTHING`,[id],client);
-    return {id,code,parent_name:name};
-  });
-}
-
-export async function getFamilyByCode(code:string) {
-  const normalized=code.trim().toUpperCase();
-  return (await queryRows<FamilyAccount>("SELECT id,code,parent_name,password_hash FROM families WHERE code=$1",[normalized]))[0];
-}
-
-export async function addTeenToFamily(familyId:string,name:string,pinHash:string) {
-  const cleanName=name.trim().slice(0,80);
-  if(cleanName.length<1||pinHash.length<40) throw new Error("A valid teen name and PIN hash are required");
-  const id=randomUUID();
-  await withTransaction(async client=>{
-    const family=await queryRows("SELECT id FROM families WHERE id=$1 FOR UPDATE",[familyId],client);
-    if(!family.length) throw new Error("Family not found");
-    await execute("INSERT INTO members(id,name,role,age,allowance_cents,payout_email,emoji,family_id,pin_hash) VALUES($1,$2,'teen',NULL,0,NULL,'🙂',$3,$4)",[id,cleanName,familyId,pinHash],client);
-  });
-  return {id,name:cleanName,role:"teen" as const};
-}
-
-export async function getFamilyMember(id:string,familyId:string) {
-  return (await queryRows<Member>("SELECT * FROM members WHERE id=$1 AND family_id=$2",[id,familyId]))[0];
+export async function setAllowance(memberId:string,cents:number,familyId="legacy-family") {
+  return execute("UPDATE members SET allowance_cents=$1 WHERE id=$2 AND role='teen' AND family_id=$3",[cents,memberId,familyId]);
 }
 
 export async function consumeRateLimit(rateKey:string,limit:number,windowMs:number) {
