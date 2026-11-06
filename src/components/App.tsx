@@ -172,6 +172,8 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
   const pending = state.claims.filter((c) => c.status === "pending_parent");
   const decided = state.claims.filter((c) => c.status !== "pending_parent");
   const names = Object.fromEntries(state.members.map((m) => [m.id, m.name]));
+  const totalSpend = teens.reduce((sum, teen) => sum + (teen.balances?.spend ?? 0), 0);
+  const totalJar = teens.reduce((sum, teen) => sum + (teen.balances?.jar ?? 0), 0);
   async function reconcileClaim(id: number) {
     try {
       const result = await api<{ status: string; message?: string }>(`/api/claims/${id}/reconcile`, {});
@@ -179,14 +181,38 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
     } catch (error) { onError((error as Error).message); }
   }
   return (
-    <div className="grid items-start gap-5 lg:grid-cols-12 lg:gap-6">
+    <div className="space-y-5">
+      <section aria-label="Family financial overview" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium text-slate-500">Teens</p>
+          <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">{teens.length}</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium text-slate-500">Combined spending</p>
+          <p className="mt-1 text-xl font-semibold tracking-tight text-slate-950">{fmt(totalSpend)}</p>
+        </div>
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 shadow-sm">
+          <p className="text-xs font-medium text-emerald-700">Umbrella funds</p>
+          <p className="mt-1 text-xl font-semibold tracking-tight text-emerald-900">{fmt(totalJar)}</p>
+        </div>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
+          <p className="text-xs font-medium text-amber-800">Claims to review</p>
+          <p className="mt-1 text-2xl font-semibold tracking-tight text-amber-950">{pending.length}</p>
+        </div>
+      </section>
+      <nav aria-label="Parent dashboard sections" className="sticky top-2 z-20 -mx-1 flex gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white/95 p-2 shadow-sm backdrop-blur sm:mx-0">
+        {[["#family","Family"],["#review-claims","Claims"],["#claim-history","History"],["#family-activity","Activity"],["#family-rules","Rules"],["#family-assistant","AI assistant"]].map(([href,label]) => (
+          <a key={href} href={href} className="shrink-0 rounded-lg px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-emerald-50 hover:text-emerald-800">{label}</a>
+        ))}
+      </nav>
+      <div className="grid items-start gap-5 lg:grid-cols-12 lg:gap-6">
       <div className="space-y-5 lg:col-span-8">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div id="family" className="grid scroll-mt-24 gap-4 sm:grid-cols-2">
           {teens.map((t) => (
             <TeenFundingCard key={t.id} teen={t} state={state} onDone={onDone} onError={onError} />
           ))}
         </div>
-        <Card title={`Claims waiting for you (${pending.length})`}>
+        <Card title={`Claims waiting for you (${pending.length})`}><div id="review-claims" className="scroll-mt-24">
           {pending.length === 0 ? (
             <p className="text-sm text-slate-500">No claims to review. Switch to a teen to file one.</p>
           ) : (
@@ -196,9 +222,9 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
               ))}
             </div>
           )}
-        </Card>
+        </div></Card>
         {decided.length > 0 && (
-          <Card title={`Claim history (${decided.length})`}>
+          <Card title={`Claim history (${decided.length})`}><div id="claim-history" className="scroll-mt-24">
             <ClaimsGrid claims={decided} names={names} />
             {decided.some((claim) => claim.status === "payout_pending") && (
               <div className="mt-4 space-y-2">
@@ -214,18 +240,19 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
                 ))}
               </div>
             )}
-          </Card>
+          </div></Card>
         )}
-        <Ledger state={state} />
+        <div id="family-activity" className="scroll-mt-24"><Ledger state={state} /></div>
       </div>
       <div className="space-y-5 lg:col-span-4">
-        <RulesCard state={state} onDone={onDone} onError={onError} />
-        <Chat
+        <div id="family-rules" className="scroll-mt-24"><RulesCard state={state} onDone={onDone} onError={onError} /></div>
+        <div id="family-assistant" className="scroll-mt-24"><Chat
           persona="parent"
           title="Family assistant"
           intro="I can look up PayPal transactions, subscriptions and invoices, summarise claims, and adjust the umbrella rules for you."
           suggestions={["How are the umbrella funds doing?", "Show recent PayPal transactions", "Raise the umbrella share to 25%"]}
-        />
+        /></div>
+      </div>
       </div>
     </div>
   );
