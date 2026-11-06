@@ -83,10 +83,10 @@ export default function App() {
     e.preventDefault();
     setBusy(true);
     try {
-      const result = await api<{ role: "parent" | "teen"; memberId: string }>("/api/auth/login", {
+      const result = await api<{ role: "parent" | "teen"; memberId: string; familyId?: string }>("/api/auth/login", {
         role, memberId: role === "parent" ? "parent" : memberId, pin,
       });
-      setSession(result);
+      setSession({...result,familyId:result.familyId||"legacy-family"});
       setPin("");
       setState(await api<AppState>("/api/state"));
       notify("You're signed in.");
