@@ -10,7 +10,7 @@ export const cryptoEnabled = process.env.PAYPAL_CRYPTO_ENABLED === "true";
 export function isValidPayoutRecipientEmail(email: unknown): email is string {
   if (typeof email !== "string" || email.length > 254) return false;
   const value = email.trim();
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(value)) return false;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return false;
   const domain = value.split("@")[1].toLowerCase();
   return domain !== "localhost" &&
     domain !== "example.com" && !domain.endsWith(".example.com") &&
