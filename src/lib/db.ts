@@ -300,14 +300,15 @@ export async function updateSubscriptionStatus(subscriptionId:string,status:stri
 }
 export async function recordSubscriptionPayment(input:{eventId:string;eventType:string;subscriptionId:string;saleId:string;amountCents:number}) {
   return withTransaction(async client=>{
-    const [sub]=await queryRows<{member_id:string;amount_cents:number}>("SELECT member_id,amount_cents FROM subscriptions WHERE subscription_id=$1 FOR UPDATE",[input.subscriptionId],client);
+    const [sub]=await queryRows<{member_id:string;amount_cents:number;family_id:string}>("SELECT member_id,amount_cents,family_id FROM subscriptions WHERE subscription_id=$1 FOR UPDATE",[input.subscriptionId],client);
     if(!sub) throw new Error("PayPal subscription is not linked to a Paraguas family member");
     if(input.amountCents!==sub.amount_cents) throw new Error("PayPal subscription payment amount does not match the allowance");
     const event=await queryRows("INSERT INTO paypal_webhook_events(event_id,event_type) VALUES($1,$2) ON CONFLICT DO NOTHING RETURNING event_id",[input.eventId,input.eventType],client);
     if(!event.length) return {credited:false,duplicate:true};
     const [owner]=await queryRows<{family_id:string}>("SELECT family_id FROM members WHERE id=$1",[sub.member_id],client);
+    if(!owner||owner.family_id!==sub.family_id) throw new Error("PayPal subscription family does not match its member");
     const payment=await queryRows("INSERT INTO payments(order_id,member_id,amount_cents,method,status,family_id) VALUES($1,$2,$3,'subscription','COMPLETED',$4) ON CONFLICT DO NOTHING RETURNING order_id",
-      [input.saleId,sub.member_id,input.amountCents,owner?.family_id ?? "legacy-family"],client);
+      [input.saleId,sub.member_id,input.amountCents,sub.family_id],client);
     if(!payment.length) return {credited:false,duplicate:true};
     await creditAllowance(sub.member_id,input.amountCents,input.saleId,"Weekly allowance (PayPal subscription)",client);
     return {credited:true,duplicate:false};
