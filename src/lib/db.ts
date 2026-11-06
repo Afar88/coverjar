@@ -83,6 +83,7 @@ async function ensureSchema() {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (member_id, streak_end_week)
         );
         ALTER TABLE rules ADD COLUMN IF NOT EXISTS streak_bonus_percent INTEGER NOT NULL DEFAULT 10;
+        ALTER TABLE members ADD COLUMN IF NOT EXISTS pin_hash TEXT;
 
       -- Multi-family foundation. Existing demo data is preserved in one legacy family.
       CREATE TABLE IF NOT EXISTS families (
