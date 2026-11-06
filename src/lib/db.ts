@@ -102,12 +102,13 @@ async function ensureSchema() {
       ALTER TABLE payments ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS family_id TEXT;
       ALTER TABLE streak_bonus_awards ADD COLUMN IF NOT EXISTS family_id TEXT;
+      -- Every pre-existing row belongs to the single legacy family.
       UPDATE members SET family_id='legacy-family' WHERE family_id IS NULL;
-      UPDATE ledger l SET family_id=m.family_id FROM members m WHERE l.member_id=m.id AND l.family_id IS NULL;
-      UPDATE claims c SET family_id=m.family_id FROM members m WHERE c.member_id=m.id AND c.family_id IS NULL;
-      UPDATE payments p SET family_id=m.family_id FROM members m WHERE p.member_id=m.id AND p.family_id IS NULL;
-      UPDATE subscriptions s SET family_id=m.family_id FROM members m WHERE s.member_id=m.id AND s.family_id IS NULL;
-      UPDATE streak_bonus_awards a SET family_id=m.family_id FROM members m WHERE a.member_id=m.id AND a.family_id IS NULL;
+      UPDATE ledger SET family_id='legacy-family' WHERE family_id IS NULL;
+      UPDATE claims SET family_id='legacy-family' WHERE family_id IS NULL;
+      UPDATE payments SET family_id='legacy-family' WHERE family_id IS NULL;
+      UPDATE subscriptions SET family_id='legacy-family' WHERE family_id IS NULL;
+      UPDATE streak_bonus_awards SET family_id='legacy-family' WHERE family_id IS NULL;
       ALTER TABLE members ALTER COLUMN family_id SET NOT NULL;
       ALTER TABLE ledger ALTER COLUMN family_id SET NOT NULL;
       ALTER TABLE claims ALTER COLUMN family_id SET NOT NULL;
@@ -158,6 +159,8 @@ async function seed(client: Queryable) {
     ["parent","Ada","parent",null,0,process.env.DEMO_PARENT_EMAIL || "parent@paraguas.test","👩🏾","tobi","Tobi","teen",15,2000,null,"🧑🏾‍🎤","zara","Zara","teen",13,1500,null,"👧🏾"]);
   await client.query("INSERT INTO rules (id,jar_percent,deductible_cents,max_payout_cents,streak_bonus_percent,covered,excluded,repair_shop_email) VALUES (1,20,500,15000,10,$1::jsonb,$2::jsonb,$3)",
     [JSON.stringify(["Accidental damage to a phone, tablet, laptop or headphones","Accidental damage to a bike or school calculator","Theft, if reported to a parent the same day"]),JSON.stringify(["Damage done on purpose","Items that were simply lost","Cosmetic scratches that don't affect use","Items lent to a friend when they broke"]),process.env.DEMO_REPAIR_SHOP_EMAIL || "repairs@fixitfast.test"]);
+  // The family_rules copy in the schema step runs before seeding, so copy the seeded rules for the legacy family here.
+  await client.query("INSERT INTO family_rules(family_id,jar_percent,deductible_cents,max_payout_cents,streak_bonus_percent,covered,excluded,repair_shop_email) SELECT 'legacy-family',jar_percent,deductible_cents,max_payout_cents,streak_bonus_percent,covered,excluded,repair_shop_email FROM rules WHERE id=1 ON CONFLICT (family_id) DO NOTHING");
   for (const [memberId, cents] of [["tobi",2000],["zara",1500]] as const) {
     for (let weeksAgo=12; weeksAgo>=1; weeksAgo--) {
       const jar=Math.round(cents*20/100);
@@ -289,7 +292,8 @@ export async function consumeRateLimit(rateKey:string,limit:number,windowMs:numb
   return {allowed,remaining:Math.max(0,limit-attempts),retryAfterSeconds:allowed?0:Math.max(1,Math.ceil((started+windowMs-now)/1000))};
 }
 export async function saveSubscription(subscriptionId:string,memberId:string,amountCents:number) {
-  await execute("INSERT INTO subscriptions(subscription_id,member_id,amount_cents,status) VALUES($1,$2,$3,'APPROVAL_PENDING')",[subscriptionId,memberId,amountCents]);
+  const [owner]=await queryRows<{family_id:string}>("SELECT family_id FROM members WHERE id=$1",[memberId]);
+  await execute("INSERT INTO subscriptions(subscription_id,member_id,amount_cents,status,family_id) VALUES($1,$2,$3,'APPROVAL_PENDING',$4)",[subscriptionId,memberId,amountCents,owner?.family_id ?? "legacy-family"]);
 }
 export async function updateSubscriptionStatus(subscriptionId:string,status:string) {
   await execute("UPDATE subscriptions SET status=$1 WHERE subscription_id=$2",[status,subscriptionId]);
@@ -301,8 +305,9 @@ export async function recordSubscriptionPayment(input:{eventId:string;eventType:
     if(input.amountCents!==sub.amount_cents) throw new Error("PayPal subscription payment amount does not match the allowance");
     const event=await queryRows("INSERT INTO paypal_webhook_events(event_id,event_type) VALUES($1,$2) ON CONFLICT DO NOTHING RETURNING event_id",[input.eventId,input.eventType],client);
     if(!event.length) return {credited:false,duplicate:true};
-    const payment=await queryRows("INSERT INTO payments(order_id,member_id,amount_cents,method,status) VALUES($1,$2,$3,'subscription','COMPLETED') ON CONFLICT DO NOTHING RETURNING order_id",
-      [input.saleId,sub.member_id,input.amountCents],client);
+    const [owner]=await queryRows<{family_id:string}>("SELECT family_id FROM members WHERE id=$1",[sub.member_id],client);
+    const payment=await queryRows("INSERT INTO payments(order_id,member_id,amount_cents,method,status,family_id) VALUES($1,$2,$3,'subscription','COMPLETED',$4) ON CONFLICT DO NOTHING RETURNING order_id",
+      [input.saleId,sub.member_id,input.amountCents,owner?.family_id ?? "legacy-family"],client);
     if(!payment.length) return {credited:false,duplicate:true};
     await creditAllowance(sub.member_id,input.amountCents,input.saleId,"Weekly allowance (PayPal subscription)",client);
     return {credited:true,duplicate:false};
@@ -339,14 +344,17 @@ export async function reserveStreakBonus(memberId:string,endWeek:string,orderId:
   if(!rows.length) throw new Error("Saving streak match is already reserved or completed");
 }
 export async function creditAllowance(memberId:string,cents:number,ref:string,label:string,executor?:Queryable) {
-  const {jar_percent}=await getRules(executor); const jar=Math.round(cents*jar_percent/100);
-  await addLedger({member_id:memberId,bucket:"spend",amount_cents:cents-jar,kind:"allowance",memo:label,paypal_ref:ref},executor);
-  await addLedger({member_id:memberId,bucket:"jar",amount_cents:jar,kind:"allowance",memo:`Umbrella fund share (${jar_percent}%)`,paypal_ref:ref},executor);
+  // Credit the teen's own family, not the legacy default (PayPal webhooks carry no session).
+  const [owner]=await queryRows<{family_id:string}>("SELECT family_id FROM members WHERE id=$1",[memberId],executor);
+  const familyId=owner?.family_id ?? "legacy-family";
+  const {jar_percent}=await getRules(executor,familyId); const jar=Math.round(cents*jar_percent/100);
+  await addLedger({member_id:memberId,bucket:"spend",amount_cents:cents-jar,kind:"allowance",memo:label,paypal_ref:ref},executor,familyId);
+  await addLedger({member_id:memberId,bucket:"jar",amount_cents:jar,kind:"allowance",memo:`Umbrella fund share (${jar_percent}%)`,paypal_ref:ref},executor,familyId);
   return {spend:cents-jar,jar};
 }
-export async function familySnapshot() {
-  const teens=await getTeens();
-  return {teens:await Promise.all(teens.map(async t=>({...t,balances:await balances(t.id)}))),rules:await getRules()};
+export async function familySnapshot(familyId="legacy-family") {
+  const teens=await getTeens(familyId);
+  return {teens:await Promise.all(teens.map(async t=>({...t,balances:await balances(t.id,undefined,familyId)}))),rules:await getRules(undefined,familyId)};
 }
 export async function cancelStreakBonus(orderId:string) {
   return withTransaction(async client=>{

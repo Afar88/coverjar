@@ -42,6 +42,10 @@ Open http://localhost:3000.
 
 For local development, configure a Neon database and a private Vercel Blob store (use `vercel env pull` to retrieve the Blob token). `DATABASE_URL` is required for login and all database-backed features; `BLOB_READ_WRITE_TOKEN` is required for claim-photo uploads. Gemini and PayPal credentials can be omitted to use the app's simulated/demo provider paths. Local demo passcodes are `2468` (parent) and `1357` (teen); never use them in production.
 
+### Family accounts
+
+Each parent can register their own family from the login screen and gets a family code. Parents sign in with the family code and their password; teens sign in with the family code and the PIN their parent set when adding them. Every family's teens, ledger, claims, rules, payments and AI assistant data are kept separate, and PayPal allowance payments are credited to the paying teen's own family. The shared demo passcodes above still open the built-in demo family.
+
 ## Environment variables
 
 | Variable | Purpose |
