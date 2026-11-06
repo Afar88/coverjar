@@ -11,11 +11,11 @@ export async function POST(req:Request) {
   const memberId=typeof body.memberId==="string"?body.memberId:""; const method=body.method;
   if(method!==undefined&&method!=="paypal"&&method!=="crypto"&&method!=="streak_bonus")return Response.json({error:"Unsupported payment method"},{status:400});
   if(method==="crypto"&&!cryptoEnabled)return Response.json({error:"PayPal crypto payments are not enabled for this app"},{status:403});
-  const teen=await getMember(memberId); let cents=toCents(body.amount);
+  const teen=await getMember(memberId,undefined,session.familyId); let cents=toCents(body.amount);
   if(!teen||teen.role!=="teen")return Response.json({error:"Unknown teen"},{status:400});
   let streakEndWeek:string|null=null;
   if(method==="streak_bonus"){
-    const streak=await getStreakStatus(teen.id);
+    const streak=await getStreakStatus(teen.id,undefined,session.familyId);
     if(!streak.eligible||!streak.endWeek)return Response.json({error:"This teen has no unmatched four-week saving streak yet."},{status:409});
     cents=streak.bonusCents; streakEndWeek=streak.endWeek;
     if(!(cents>=100&&cents<=50000))return Response.json({error:"The calculated match must be between $1 and $500. Check the family match percentage."},{status:400});
