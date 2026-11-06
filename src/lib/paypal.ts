@@ -6,6 +6,17 @@ export const paypalConfigured = Boolean(clientId && clientSecret);
 export const paypalBaseUrl = isLive ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
 export const publicClientId = clientId;
 export const cryptoEnabled = process.env.PAYPAL_CRYPTO_ENABLED === "true";
+/** Reject malformed and reserved example/test addresses before any payout request. */
+export function isValidPayoutRecipientEmail(email: unknown): email is string {
+  if (typeof email !== "string" || email.length > 254) return false;
+  const value = email.trim();
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(value)) return false;
+  const domain = value.split("@")[1].toLowerCase();
+  return domain !== "localhost" &&
+    domain !== "example.com" && !domain.endsWith(".example.com") &&
+    !domain.endsWith(".test") && !domain.endsWith(".invalid");
+}
+
 
 let cachedToken: { value: string; expires: number } | null = null;
 
