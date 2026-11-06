@@ -6,14 +6,14 @@ import { requireRole } from "@/lib/auth";
 export async function GET(req:Request) {
   const session=requireRole(req);
   if(!session)return Response.json({error:"Sign in to continue"},{status:401});
-  const allMembers=await getMembers();
+  const allMembers=await getMembers(session.familyId);
   const members=await Promise.all((session.role==="parent"?allMembers:allMembers.filter(m=>m.id===session.memberId)).map(async m=>({
-    ...m,balances:m.role==="teen"?await balances(m.id):null,streak:m.role==="teen"?await getStreakStatus(m.id):null,
+    ...m,balances:m.role==="teen"?await balances(m.id,undefined,session.familyId):null,streak:m.role==="teen"?await getStreakStatus(m.id,undefined,session.familyId):null,
   })));
-  const claimRows=await getClaims(session.role==="parent"?undefined:session.memberId);
+  const claimRows=await getClaims(session.role==="parent"?undefined:session.memberId,session.familyId);
   const claims=claimRows.map(c=>({...c,ai:c.ai?JSON.parse(c.ai):null}));
   return Response.json({
-    members,rules:await getRules(),ledger:await getLedger(session.role==="parent"?undefined:session.memberId,80),claims,
+    members,rules:await getRules(undefined,session.familyId),ledger:await getLedger(session.role==="parent"?undefined:session.memberId,80,session.familyId),claims,
     config:{paypal:paypalConfigured?"sandbox":"simulated",paypalClientId:paypalConfigured?publicClientId:null,cryptoEnabled,ai:geminiConfigured?geminiModelId:"offline-demo"},
   },{headers:{"Cache-Control":"no-store"}});
 }
