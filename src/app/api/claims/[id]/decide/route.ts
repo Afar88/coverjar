@@ -26,7 +26,16 @@ export async function POST(req:Request,ctx:{params:Promise<{id:string}>}) {
   if(cents>maximumAllowedPayout)return Response.json({error:`Payout exceeds the family limit after the ${(rules.deductible_cents/100).toFixed(2)} deductible. Maximum allowed: ${(maximumAllowedPayout/100).toFixed(2)}.`},{status:400});
   const parent=await getMember(session.familyId==="legacy-family"?"parent":`parent_${session.familyId}`,undefined,session.familyId);
   if(!parent)return Response.json({error:"Parent account is missing"},{status:500});
-  const email=body.payee==="parent"?parent.payout_email||"parent@paraguas.test":rules.repair_shop_email;
+  const email=body.payee==="parent"?parent.payout_email:rules.repair_shop_email;
+  // Never send money to demo placeholders or malformed recipient addresses.
+  const validRecipient=typeof email==="string" &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) &&
+    !/\.(test|invalid|example)$/i.test(email);
+  if(!validRecipient)return Response.json({
+    error:body.payee==="parent"
+      ?"Add a valid PayPal email to the parent account before paying yourself."
+      :"Set a real repair-shop PayPal email in Family rules before approving this claim."
+  },{status:400});
   const note=typeof body.note==="string"?body.note.slice(0,500):null;
   try {
     await withTransaction(async client=>{
