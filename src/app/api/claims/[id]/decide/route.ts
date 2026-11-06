@@ -24,7 +24,7 @@ export async function POST(req:Request,ctx:{params:Promise<{id:string}>}) {
   const deductibleAdjustedClaimLimit=Math.max(0,claim.amount_cents-rules.deductible_cents);
   const maximumAllowedPayout=Math.min(rules.max_payout_cents,deductibleAdjustedClaimLimit);
   if(cents>maximumAllowedPayout)return Response.json({error:`Payout exceeds the family limit after the ${(rules.deductible_cents/100).toFixed(2)} deductible. Maximum allowed: ${(maximumAllowedPayout/100).toFixed(2)}.`},{status:400});
-  const parent=await getMember(`parent_${session.familyId}`,undefined,session.familyId);
+  const parent=await getMember(session.familyId==="legacy-family"?"parent":`parent_${session.familyId}`,undefined,session.familyId);
   if(!parent)return Response.json({error:"Parent account is missing"},{status:500});
   const email=body.payee==="parent"?parent.payout_email||"parent@paraguas.test":rules.repair_shop_email;
   const note=typeof body.note==="string"?body.note.slice(0,500):null;
