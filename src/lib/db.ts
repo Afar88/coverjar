@@ -320,7 +320,7 @@ export async function recordMockSubscriptionPayment(subscriptionId:string,family
 }
 
 export type StreakStatus={weeks:number;bonusCents:number;eligible:boolean;alreadyMatched:boolean;endWeek:string|null};
-export async function getStreakStatus(memberId:string,executor?:Queryable,familyId="legacy-family"):Promise<StreakStatus> {
+export async function getStreakStatus(memberId:string,familyId:string,executor?:Queryable):Promise<StreakStatus> {
   const rows=await queryRows<{week_start:string;contributed:number}>(
     `SELECT date_trunc('week',created_at AT TIME ZONE 'UTC')::date::text AS week_start,SUM(amount_cents)::int AS contributed
      FROM ledger WHERE member_id=$1 AND family_id=$2 AND bucket='jar' AND kind='allowance' AND amount_cents>0\n     GROUP BY 1 ORDER BY 1 DESC LIMIT 52`,[memberId,familyId],executor);
@@ -338,10 +338,10 @@ export async function getStreakStatus(memberId:string,executor?:Queryable,family
   const bonusCents=eligible?Math.round(contributed*(await getRules(executor,familyId)).streak_bonus_percent/100):0;
   return {weeks,bonusCents,eligible,alreadyMatched,endWeek};
 }
-export async function reserveStreakBonus(memberId:string,endWeek:string,orderId:string,amountCents:number,executor?:Queryable,familyId="legacy-family") {
-  const rows=await queryRows("INSERT INTO streak_bonus_awards(member_id,streak_end_week,order_id,amount_cents,status,family_id) VALUES($1,$2,$3,$4,'PENDING',$5) ON CONFLICT(member_id,streak_end_week) DO UPDATE SET order_id=EXCLUDED.order_id,amount_cents=EXCLUDED.amount_cents,status=EXCLUDED.status,family_id=EXCLUDED.family_id WHERE streak_bonus_awards.status='CANCELLED' RETURNING order_id",
+export async function reserveStreakBonus(memberId:string,endWeek:string,orderId:string,amountCents:number,familyId:string,executor?:Queryable) {
+  const rows=await queryRows("INSERT INTO streak_bonus_awards(member_id,streak_end_week,order_id,amount_cents,status,family_id) SELECT $1,$2,$3,$4,'PENDING',$5 FROM members WHERE id=$1 AND family_id=$5 ON CONFLICT(member_id,streak_end_week) DO UPDATE SET order_id=EXCLUDED.order_id,amount_cents=EXCLUDED.amount_cents,status=EXCLUDED.status,family_id=EXCLUDED.family_id WHERE streak_bonus_awards.status='CANCELLED' RETURNING order_id",
     [memberId,endWeek,orderId,amountCents,familyId],executor);
-  if(!rows.length) throw new Error("Saving streak match is already reserved or completed");
+  if(!rows.length) throw new Error("Saving streak match is already reserved, completed, or the member is outside this family");
 }
 export async function creditAllowance(memberId:string,cents:number,ref:string,label:string,executor?:Queryable) {
   // Credit the teen's own family, not the legacy default (PayPal webhooks carry no session).
@@ -352,14 +352,14 @@ export async function creditAllowance(memberId:string,cents:number,ref:string,la
   await addLedger({member_id:memberId,bucket:"jar",amount_cents:jar,kind:"allowance",memo:`Umbrella fund share (${jar_percent}%)`,paypal_ref:ref},executor,familyId);
   return {spend:cents-jar,jar};
 }
-export async function familySnapshot(familyId="legacy-family") {
+export async function familySnapshot(familyId:string) {
   const teens=await getTeens(familyId);
   return {teens:await Promise.all(teens.map(async t=>({...t,balances:await balances(t.id,undefined,familyId)}))),rules:await getRules(undefined,familyId)};
 }
-export async function cancelStreakBonus(orderId:string) {
+export async function cancelStreakBonus(orderId:string,familyId:string) {
   return withTransaction(async client=>{
-    const changed=await execute("UPDATE payments SET status='CANCELLED' WHERE order_id=$1 AND method='streak_bonus' AND status='CREATED'",[orderId],client);
-    if(changed) await execute("UPDATE streak_bonus_awards SET status='CANCELLED' WHERE order_id=$1 AND status='PENDING'",[orderId],client);
+    const changed=await execute("UPDATE payments SET status='CANCELLED' WHERE order_id=$1 AND family_id=$2 AND method='streak_bonus' AND status='CREATED'",[orderId,familyId],client);
+    if(changed) await execute("UPDATE streak_bonus_awards SET status='CANCELLED' WHERE order_id=$1 AND family_id=$2 AND status='PENDING'",[orderId,familyId],client);
     return changed>0;
   });
 }
