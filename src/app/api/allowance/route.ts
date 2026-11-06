@@ -3,7 +3,8 @@ import { toCents } from "@/lib/money";
 import { requireRole } from "@/lib/auth";
 
 export async function POST(req: Request) {
-  if (!requireRole(req, "parent")) {
+  const session=requireRole(req,"parent");
+  if (!session) {
     return Response.json({ error: "Parent access required" }, { status: 403 });
   }
 
@@ -25,12 +26,12 @@ export async function POST(req: Request) {
     return Response.json({ error: "Weekly allowance must be between $1 and $500." }, { status: 400 });
   }
 
-  const member = await getMember(memberId);
+  const member = await getMember(memberId,undefined,session.familyId);
   if (!member || member.role !== "teen") {
     return Response.json({ error: "Unknown teen profile." }, { status: 404 });
   }
 
-  const updated = await setAllowance(memberId, cents);
+  const updated = await setAllowance(memberId,cents,session.familyId;
   if (updated !== 1) {
     return Response.json({ error: "The allowance could not be saved. Refresh and try again." }, { status: 409 });
   }
