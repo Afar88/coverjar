@@ -39,7 +39,9 @@ export async function POST(req:Request,ctx:{params:Promise<{id:string}>}) {
     });
   } catch(e) {
     const message=(e as Error).message;
-    return Response.json({error:message},{status:message==="Not enough in the umbrella fund"?400:409});
+    if(message==="Not enough in the umbrella fund")return Response.json({error:message},{status:400});
+    console.error("Claim payout reservation failed:",e);
+    return Response.json({error:"The claim could not be prepared for payout. Refresh and try again."},{status:409,headers:{"Cache-Control":"no-store"}});
   }
   try {
     const payout=await sendPayout({email,cents,note:`Paraguas claim #${claim.id}: ${claim.title}`,itemId:`claim-${claim.id}`});
@@ -57,6 +59,7 @@ export async function POST(req:Request,ctx:{params:Promise<{id:string}>}) {
     await queryRows("UPDATE claims SET status='paid',paypal_ref=$1,decided_at=NOW() WHERE id=$2 AND family_id=$3 AND status='payout_pending'",[payout.batchId,claim.id,session.familyId]);
     return Response.json({...await getClaim(claim.id,session.familyId),payoutStatus:payout.status});
   } catch(e) {
-    return Response.json({...await getClaim(claim.id,session.familyId),payoutStatus:"UNKNOWN",message:`Payout outcome needs reconciliation before retrying: ${(e as Error).message}`},{status:202});
+    console.error("Claim payout request failed; reconciliation is required:",e);
+    return Response.json({...await getClaim(claim.id,session.familyId),payoutStatus:"UNKNOWN",message:"Payout outcome needs reconciliation before retrying. Funds remain reserved."},{status:202,headers:{"Cache-Control":"no-store"}});
   }
 }
