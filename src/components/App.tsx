@@ -549,7 +549,7 @@ function RulesCard({ state, onDone, onError }: { state: AppState } & Handlers) {
       </div>
       <label className="mt-3 block text-xs text-slate-500">
         Repair-shop PayPal email
-        <input className={inputCls} type="email" value={form.repair_shop_email} onChange={set("repair_shop_email")} placeholder="repairs@example.com" />
+        <input className={inputCls} type="email" value={form.repair_shop_email} onChange={set("repair_shop_email")} placeholder="repairs@yourshop.com" />
         <span className="mt-1 block text-[11px] text-slate-500">Use the real PayPal email that should receive approved repair payments. Payouts are blocked until this is configured.</span>
       </label>
       <label className="mt-3 block text-xs text-slate-500">
