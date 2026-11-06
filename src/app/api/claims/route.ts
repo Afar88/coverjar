@@ -4,6 +4,9 @@ import { assessClaim } from "@/lib/gemini";
 import { deleteClaimPhoto, detectClaimPhoto, isMemberClaimPhotoPath, MAX_CLAIM_PHOTO_BYTES, readClaimPhoto } from "@/lib/storage";
 import { requireRole } from "@/lib/auth";
 
+// AI photo assessment can take longer than the default serverless window.
+export const maxDuration = 60;
+
 export async function POST(req:Request) {
   const session=requireRole(req,"teen");
   if(!session)return Response.json({error:"Teen access required"},{status:403});
