@@ -28,6 +28,11 @@ export default function App() {
   const [role, setRole] = useState<"parent" | "teen">("parent");
   const [memberId, setMemberId] = useState("");
   const [pin, setPin] = useState("");
+  const [familyCode,setFamilyCode]=useState("");
+  const [parentName,setParentName]=useState("");
+  const [password,setPassword]=useState("");
+  const [registerMode,setRegisterMode]=useState(false);
+  const [issuedFamilyCode,setIssuedFamilyCode]=useState("");
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ msg: string; error?: boolean } | null>(() => {
     for (const [k, msg] of Object.entries(RETURN_MESSAGES)) {
@@ -83,16 +88,29 @@ export default function App() {
     e.preventDefault();
     setBusy(true);
     try {
-      const result = await api<{ role: "parent" | "teen"; memberId: string; familyId?: string }>("/api/auth/login", {
-        role, memberId: role === "parent" ? "parent" : memberId, pin,
+      const result = await api<{ role: "parent" | "teen"; memberId: string; familyId?: string; familyCode?:string }>("/api/auth/login", {
+        role, familyCode, memberId: role === "parent" ? undefined : memberId, pin, password,
       });
       setSession({...result,familyId:result.familyId||"legacy-family"});
+      setIssuedFamilyCode(result.familyCode||"");
       setPin("");
       setState(await api<AppState>("/api/state"));
       notify("You're signed in.");
     } catch (error) {
       notify((error as Error).message, true);
     } finally { setBusy(false); }
+  }
+
+  async function registerParent(e:React.FormEvent) {
+    e.preventDefault(); setBusy(true);
+    try {
+      const result=await api<{role:"parent";memberId:string;familyId:string;familyCode:string}>("/api/auth/register",{name:parentName,password});
+      setSession(result); setIssuedFamilyCode(result.familyCode);
+      setState(await api<AppState>("/api/state"));
+      setPassword("");
+      notify("Family created. Save your family code somewhere safe.");
+    } catch(error) { notify((error as Error).message,true); }
+    finally { setBusy(false); }
   }
 
   async function signOut() {
@@ -121,11 +139,16 @@ export default function App() {
           <h1 className="text-3xl font-bold tracking-tight"><span aria-hidden>☂️ </span>Para<span className="text-emerald-600">guas</span></h1>
           <p className="mt-2 text-sm text-slate-500">Your family&apos;s allowance and protection fund.</p>
         </div>
-        <form onSubmit={signIn} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex rounded-xl bg-slate-100 p-1">
+        <form onSubmit={registerMode?registerParent:signIn} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          {!registerMode && <div className="flex rounded-xl bg-slate-100 p-1">
             <button type="button" onClick={() => setRole("parent")} className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${role === "parent" ? "bg-white shadow-sm" : "text-slate-500"}`}>Parent</button>
             <button type="button" onClick={() => setRole("teen")} className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${role === "teen" ? "bg-white shadow-sm" : "text-slate-500"}`}>Teen</button>
-          </div>
+          </div>}
+          {registerMode ? <>
+            <label className="block text-sm font-medium">Parent name<input className={inputCls+" mt-1"} value={parentName} onChange={e=>setParentName(e.target.value)} required maxLength={80} /></label>
+            <label className="block text-sm font-medium">Password<input className={inputCls+" mt-1"} type="password" autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)} minLength={10} required placeholder="At least 10 characters" /></label>
+          </> : <>
+          <label className="block text-sm font-medium">Family code<input className={inputCls+" mt-1 uppercase"} value={familyCode} onChange={e=>setFamilyCode(e.target.value.toUpperCase())} required placeholder="FAM-XXXX-XXXX" /></label>
           {role === "teen" && (
             <label className="block text-sm font-medium">Your profile
               <select className={`${inputCls} mt-1`} value={memberId} onChange={(e) => setMemberId(e.target.value)} required>
@@ -134,10 +157,12 @@ export default function App() {
               </select>
             </label>
           )}
-          <label className="block text-sm font-medium">Passcode
-            <input className={`${inputCls} mt-1`} type="password" inputMode="numeric" autoComplete="current-password" value={pin} onChange={(e) => setPin(e.target.value)} minLength={4} maxLength={12} required placeholder="Enter your passcode" />
+          <label className="block text-sm font-medium">{role==="parent"?"Password":"Teen PIN"}
+            <input className={`${inputCls} mt-1`} type="password" inputMode={role==="teen"?"numeric":"text"} autoComplete="current-password" value={role==="parent"?password:pin} onChange={(e) => role==="parent"?setPassword(e.target.value):setPin(e.target.value)} minLength={role==="parent"?10:4} maxLength={role==="parent"?128:12} required placeholder={role==="parent"?"Enter your password":"Enter your PIN"} />
           </label>
-          <Button type="submit" disabled={busy || (role === "teen" && !memberId)}>{busy ? "Signing in…" : "Sign in"}</Button>
+          </>}
+          <Button type="submit" disabled={busy || (!registerMode && role === "teen" && !memberId)}>{busy ? "Please wait…" : registerMode?"Create family": "Sign in"}</Button>
+          <button type="button" className="w-full text-sm text-emerald-700" onClick={()=>setRegisterMode(v=>!v)}>{registerMode?"Already have a family? Sign in":"New to Paraguas? Create a family"}</button>
           {toast && <p className={`text-sm ${toast.error ? "text-rose-700" : "text-emerald-700"}`}>{toast.msg}</p>}
         </form>
       </div>
