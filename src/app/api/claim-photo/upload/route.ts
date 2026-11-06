@@ -13,12 +13,12 @@ export async function POST(request:Request) {
       onBeforeGenerateToken:async(pathname,clientPayload)=>{
         const session=requireRole(request,"teen");
         if(!session)throw new Error("Teen access required");
-        if(clientPayload!==session.memberId||!isMemberClaimPhotoPath(pathname,session.memberId))throw new Error("Upload path is not authorized for this teen account");
-        return {allowedContentTypes:ALLOWED,maximumSizeInBytes:MAX_CLAIM_PHOTO_BYTES,addRandomSuffix:false,tokenPayload:JSON.stringify({memberId:session.memberId})};
+        if(clientPayload!==JSON.stringify({memberId:session.memberId,familyId:session.familyId})||!isMemberClaimPhotoPath(pathname,session.memberId,session.familyId))throw new Error("Upload path is not authorized for this teen account");
+        return {allowedContentTypes:ALLOWED,maximumSizeInBytes:MAX_CLAIM_PHOTO_BYTES,addRandomSuffix:false,tokenPayload:JSON.stringify({memberId:session.memberId,familyId:session.familyId})};
       },
       onUploadCompleted:async({blob,tokenPayload})=>{
-        const payload=JSON.parse(tokenPayload||"{}") as {memberId?:string};
-        if(!payload.memberId||!isMemberClaimPhotoPath(blob.pathname,payload.memberId))throw new Error("Completed upload ownership could not be verified");
+        const payload=JSON.parse(tokenPayload||"{}") as {memberId?:string;familyId?:string};
+        if(!payload.memberId||!payload.familyId||!isMemberClaimPhotoPath(blob.pathname,payload.memberId,payload.familyId))throw new Error("Completed upload ownership could not be verified");
       },
     });
     return Response.json(response);
