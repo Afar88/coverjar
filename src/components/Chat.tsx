@@ -43,14 +43,23 @@ export function Chat({ persona, memberId, title, intro, suggestions }: { persona
         ))}
         {busy && <div className="text-sm text-slate-500">Thinking…</div>}
       </div>
-      <div className="mb-2 flex flex-wrap gap-2">
-        {messages.length === 0 &&
-          suggestions.map((s) => (
-            <button key={s} onClick={() => send(s)} className="rounded-full border border-slate-300 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50">
-              {s}
-            </button>
-          ))}
-      </div>
+      {messages.length === 0 && suggestions.length > 0 && (
+        <div className="mb-3">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Try asking</p>
+          <div className="flex flex-wrap gap-2">
+            {suggestions.slice(0, 3).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => send(s)}
+                className="rounded-full border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-xs font-medium text-emerald-800 transition-colors hover:border-emerald-300 hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <form
         className="flex gap-2"
         onSubmit={(e) => {
