@@ -1,6 +1,6 @@
 import { createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
-import { getFamilyByCode, getFamilyMember, getMember } from "@/lib/db";
+import { getFamilyByCode, getFamilyMember, getMember, queryRows } from "@/lib/db";
 
 const scrypt=promisify(scryptCallback);
 
@@ -83,7 +83,7 @@ export async function verifyFamilyLogin(role:Session["role"],familyCode:string,c
   if(!memberId||!/^\\d{4,12}$/.test(credential))return null;
   const member=await getFamilyMember(memberId,family.id);
   if(!member||member.role!=="teen")return null;
-  const [row]=await (await import("@/lib/db")).queryRows<{pin_hash:string|null}>("SELECT pin_hash FROM members WHERE id=$1 AND family_id=$2",[memberId,family.id]);
+  const [row]=await queryRows<{pin_hash:string|null}>("SELECT pin_hash FROM members WHERE id=$1 AND family_id=$2",[memberId,family.id]);
   if(!await verifySecret(credential,row?.pin_hash))return null;
   return {familyId:family.id,memberId};
 }
