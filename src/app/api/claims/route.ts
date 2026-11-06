@@ -38,7 +38,8 @@ export async function POST(req:Request) {
     savedPhoto=true;
     return Response.json({...claim,ai});
   } catch(e) {
-    return Response.json({error:`Claim submission failed: ${(e as Error).message}`},{status:502});
+    console.error("Claim submission failed:",e);
+    return Response.json({error:"Claim submission failed. Please try again."},{status:502,headers:{"Cache-Control":"no-store"}});
   } finally {
     if(!savedPhoto){try{await deleteClaimPhoto(photoPath,session.memberId,session.familyId);}catch{/* orphaned private uploads can be cleaned up operationally */}}
   }
