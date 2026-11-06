@@ -12,6 +12,9 @@ export async function POST(req:Request) {
   const familyCode=String(body.familyCode||"").trim().toUpperCase();
   if(familyCode){
     const credential=role==="parent"?String(body.password||""):String(body.pin||"");
+    if(!/^FAM-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(familyCode)||(role==="parent"?(credential.length<10||credential.length>128):!/^\d{4,12}$/.test(credential))) {
+      return Response.json({error:"Incorrect family code or credentials"},{status:401,headers:{"Cache-Control":"no-store"}});
+    }
     const rate=await consumeRateLimit(`family-login:${familyCode}:${role}`,LOGIN_LIMIT,LOGIN_WINDOW_MS);
     if(!rate.allowed)return Response.json({error:"Too many login attempts. Please wait before trying again."},{status:429,headers:{"Retry-After":String(rate.retryAfterSeconds),"Cache-Control":"no-store"}});
     const identity=await verifyFamilyLogin(role,familyCode,credential,body.memberId);
