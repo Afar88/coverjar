@@ -17,7 +17,7 @@ export async function POST(req:Request) {
   if (!Array.isArray(body.messages) || body.messages.length === 0 || body.messages.length > 30) {
     return Response.json({ error: "Send a message before asking the assistant." }, { status: 400 });
   }
-  const history = body.messages.slice(-12) as ModelMessage[];
+  const history = body.messages.slice(-8) as ModelMessage[];
   if (history.some((message) => !message || !["user", "assistant"].includes(message.role) ||
     !Array.isArray(message.content) && typeof message.content !== "string")) {
     return Response.json({ error: "The conversation format is invalid. Please start a new message." }, { status: 400 });
@@ -55,7 +55,7 @@ export async function POST(req:Request) {
     const response = await Promise.race([
       withGemini(model => generateText({
         model, system, messages: history, tools,
-        stopWhen: stepCountIs(4), maxRetries: 0, abortSignal: controller.signal,
+        stopWhen: stepCountIs(role === "parent" ? 2 : 4), maxRetries: 0, abortSignal: controller.signal,
       })),
       new Promise<never>((_, reject) => {
         timeout = setTimeout(() => { controller.abort(); reject(new Error("The assistant took too long to respond. Please try again in a moment.")); }, 22000);
