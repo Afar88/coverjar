@@ -14,6 +14,6 @@ export async function POST(req:Request) {
   if(!rate.allowed)return Response.json({error:"Too many login attempts. Please wait before trying again."},{status:429,headers:{"Retry-After":String(rate.retryAfterSeconds),"Cache-Control":"no-store"}});
   const pin=String(body.pin||"");
   if(!await verifyLogin(role,memberId,pin))return Response.json({error:"Incorrect passcode or account"},{status:401,headers:{"Cache-Control":"no-store"}});
-  const token=createSession(role,memberId);
-  return Response.json({role,memberId},{headers:{"Set-Cookie":sessionCookie(token),"Cache-Control":"no-store"}});
+  const token=createSession(role,memberId,"legacy-family");
+  return Response.json({role,memberId,familyId:"legacy-family"},{headers:{"Set-Cookie":sessionCookie(token),"Cache-Control":"no-store"}});
 }
