@@ -61,11 +61,17 @@ test("Neon PostgreSQL data layer preserves payment idempotency and rate limits",
     });
     await t.test("authenticates a family teen with a numeric PIN",async()=>{
       const {hashSecret,verifyFamilyLogin}=await import("../src/lib/auth");
-      const family=await db.createFamilyAccount("Test Parent",await hashSecret("parent-password-123"));
+      const parentPassword="parent-password-123";
+      const family=await db.createFamilyAccount("Test Parent",await hashSecret(parentPassword));
       const teen=await db.addTeenToFamily(family.id,"Test Teen",await hashSecret("123456"));
       const valid=await verifyFamilyLogin("teen",family.code,"123456",teen.id);
       assert.deepEqual(valid,{familyId:family.id,memberId:teen.id});
       assert.equal(await verifyFamilyLogin("teen",family.code,"654321",teen.id),null);
+      const parent=await verifyFamilyLogin("parent",family.code,parentPassword);
+      assert.deepEqual(parent,{familyId:family.id,memberId:`parent_${family.id}`});
+      assert.equal(await verifyFamilyLogin("parent",family.code,"short"),null);
+      assert.equal(await verifyFamilyLogin("parent",family.code,"x".repeat(129)),null);
+      assert.equal(await verifyFamilyLogin("parent","X".repeat(5000),parentPassword),null);
     });
   } finally { await pool.end(); }
 });
