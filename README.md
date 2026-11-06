@@ -6,6 +6,23 @@
 
 Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 
+## How to test in 2 minutes
+
+**Preview for this PR:** [Open the current verification build](https://paraguas-git-fix-family-iso-d8dbde-destinymomobu-2325s-projects.vercel.app)  
+**Production domain:** [paraguas-sigma.vercel.app](https://paraguas-sigma.vercel.app) — still serves the current `main` deployment; it does not include this PR yet.
+
+**Login:** There is no shared production demo account. Select **Create a family**, register a parent with a password, and save the generated family code. The local-only demo passcodes are `2468` (parent) and `1357` (teen); they are not production credentials.
+
+1. **Parent (30 sec):** Create a family, sign out, then sign back in with its family code and password.
+2. **Add a teen (20 sec):** Create a teen profile and set a 4–12 digit PIN.
+3. **Teen (20 sec):** Sign out and sign in using the same family code, teen profile, and PIN.
+4. **Allowance (30 sec):** Sign back in as the parent, set the teen's weekly allowance, and choose the PayPal subscription flow.
+5. **Sandbox (20 sec):** Complete checkout with a PayPal Sandbox buyer account. The allowance should be credited only after the verified `PAYMENT.SALE.COMPLETED` webhook arrives.
+6. **Claim (optional):** Sign in as the teen, upload a real JPEG/PNG/WebP photo with a claim, then return as the parent to review it.
+
+> **Deployment prerequisite:** The current Vercel project has the application secrets configured for Preview, but the production environment is still missing the app's database/session/Gemini/PayPal configuration. The private Blob token is connected to Production. Until the Production variables are configured and a fresh Production deployment is Ready, use a correctly configured Preview deployment for end-to-end testing. Keep PayPal in Sandbox; do not use live credentials for this walkthrough.
+
+
 ## How it works
 
 1. **Fund:** A parent makes a one-time PayPal top-up or sets up a weekly PayPal subscription.

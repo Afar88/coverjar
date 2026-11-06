@@ -295,32 +295,35 @@ export async function saveSubscription(subscriptionId:string,memberId:string,amo
   const [owner]=await queryRows<{family_id:string}>("SELECT family_id FROM members WHERE id=$1",[memberId]);
   await execute("INSERT INTO subscriptions(subscription_id,member_id,amount_cents,status,family_id) VALUES($1,$2,$3,'APPROVAL_PENDING',$4)",[subscriptionId,memberId,amountCents,owner?.family_id ?? "legacy-family"]);
 }
-export async function updateSubscriptionStatus(subscriptionId:string,status:string) {
-  await execute("UPDATE subscriptions SET status=$1 WHERE subscription_id=$2",[status,subscriptionId]);
+export async function updateSubscriptionStatus(subscriptionId:string,status:string,familyId?:string) {
+  await execute("UPDATE subscriptions SET status=$1 WHERE subscription_id=$2 AND ($3::text IS NULL OR family_id=$3)",[status,subscriptionId,familyId??null]);
 }
 export async function recordSubscriptionPayment(input:{eventId:string;eventType:string;subscriptionId:string;saleId:string;amountCents:number}) {
   return withTransaction(async client=>{
-    const [sub]=await queryRows<{member_id:string;amount_cents:number}>("SELECT member_id,amount_cents FROM subscriptions WHERE subscription_id=$1 FOR UPDATE",[input.subscriptionId],client);
+    const [sub]=await queryRows<{member_id:string;amount_cents:number;family_id:string}>("SELECT member_id,amount_cents,family_id FROM subscriptions WHERE subscription_id=$1 FOR UPDATE",[input.subscriptionId],client);
     if(!sub) throw new Error("PayPal subscription is not linked to a Paraguas family member");
     if(input.amountCents!==sub.amount_cents) throw new Error("PayPal subscription payment amount does not match the allowance");
     const event=await queryRows("INSERT INTO paypal_webhook_events(event_id,event_type) VALUES($1,$2) ON CONFLICT DO NOTHING RETURNING event_id",[input.eventId,input.eventType],client);
     if(!event.length) return {credited:false,duplicate:true};
     const [owner]=await queryRows<{family_id:string}>("SELECT family_id FROM members WHERE id=$1",[sub.member_id],client);
+    if(!owner||owner.family_id!==sub.family_id) throw new Error("PayPal subscription family does not match its member");
     const payment=await queryRows("INSERT INTO payments(order_id,member_id,amount_cents,method,status,family_id) VALUES($1,$2,$3,'subscription','COMPLETED',$4) ON CONFLICT DO NOTHING RETURNING order_id",
-      [input.saleId,sub.member_id,input.amountCents,owner?.family_id ?? "legacy-family"],client);
+      [input.saleId,sub.member_id,input.amountCents,sub.family_id],client);
     if(!payment.length) return {credited:false,duplicate:true};
     await creditAllowance(sub.member_id,input.amountCents,input.saleId,"Weekly allowance (PayPal subscription)",client);
     return {credited:true,duplicate:false};
   });
 }
-export async function recordMockSubscriptionPayment(subscriptionId:string) {
-  const [sub]=await queryRows<{amount_cents:number}>("SELECT amount_cents FROM subscriptions WHERE subscription_id=$1",[subscriptionId]);
+export async function recordMockSubscriptionPayment(subscriptionId:string,familyId?:string) {
+  const [sub]=await queryRows<{amount_cents:number}>("SELECT amount_cents FROM subscriptions WHERE subscription_id=$1 AND ($2::text IS NULL OR family_id=$2)",[subscriptionId,familyId??null]);
   if(!sub) throw new Error("Mock subscription is not registered");
   return recordSubscriptionPayment({eventId:`mock-event-${subscriptionId}`,eventType:"PAYMENT.SALE.COMPLETED",subscriptionId,saleId:`mock-sale-${subscriptionId}`,amountCents:sub.amount_cents});
 }
 
 export type StreakStatus={weeks:number;bonusCents:number;eligible:boolean;alreadyMatched:boolean;endWeek:string|null};
-export async function getStreakStatus(memberId:string,executor?:Queryable,familyId="legacy-family"):Promise<StreakStatus> {
+export async function getStreakStatus(memberId:string,familyId:string,executor?:Queryable):Promise<StreakStatus> {
+  const hasContributions=await queryRows("SELECT 1 FROM ledger WHERE member_id=$1 AND family_id=$2 AND bucket='jar' AND kind='allowance' AND amount_cents>0 LIMIT 1",[memberId,familyId],executor);
+  if(!hasContributions.length)return {weeks:0,bonusCents:0,eligible:false,alreadyMatched:false,endWeek:null};
   const rows=await queryRows<{week_start:string;contributed:number}>(
     `SELECT date_trunc('week',created_at AT TIME ZONE 'UTC')::date::text AS week_start,SUM(amount_cents)::int AS contributed
      FROM ledger WHERE member_id=$1 AND family_id=$2 AND bucket='jar' AND kind='allowance' AND amount_cents>0\n     GROUP BY 1 ORDER BY 1 DESC LIMIT 52`,[memberId,familyId],executor);
@@ -332,16 +335,16 @@ export async function getStreakStatus(memberId:string,executor?:Queryable,family
   let weeks=1;
   for(let i=1;i<rows.length;i++){const prev=new Date(rows[i-1].week_start+"T00:00:00Z");const next=new Date(rows[i].week_start+"T00:00:00Z");if((prev.getTime()-next.getTime())/86400000!==7)break;weeks++;}
   const endWeek=rows[0].week_start;
-  const match=await queryRows("SELECT 1 FROM streak_bonus_awards WHERE member_id=$1 AND streak_end_week=$2 AND status IN ('PENDING','COMPLETED')",[memberId,endWeek],executor);
+  const match=await queryRows("SELECT 1 FROM streak_bonus_awards WHERE member_id=$1 AND streak_end_week=$2 AND family_id=$3 AND status IN ('PENDING','COMPLETED')",[memberId,endWeek,familyId],executor);
   const alreadyMatched=match.length>0; const eligible=weeks>=4&&!alreadyMatched;
   const contributed=rows.slice(0,4).reduce((sum,row)=>sum+Number(row.contributed),0);
   const bonusCents=eligible?Math.round(contributed*(await getRules(executor,familyId)).streak_bonus_percent/100):0;
   return {weeks,bonusCents,eligible,alreadyMatched,endWeek};
 }
-export async function reserveStreakBonus(memberId:string,endWeek:string,orderId:string,amountCents:number,executor?:Queryable) {
-  const rows=await queryRows("INSERT INTO streak_bonus_awards(member_id,streak_end_week,order_id,amount_cents,status) VALUES($1,$2,$3,$4,'PENDING') ON CONFLICT(member_id,streak_end_week) DO UPDATE SET order_id=EXCLUDED.order_id,amount_cents=EXCLUDED.amount_cents,status=EXCLUDED.status WHERE streak_bonus_awards.status='CANCELLED' RETURNING order_id",
-    [memberId,endWeek,orderId,amountCents],executor);
-  if(!rows.length) throw new Error("Saving streak match is already reserved or completed");
+export async function reserveStreakBonus(memberId:string,endWeek:string,orderId:string,amountCents:number,familyId:string,executor?:Queryable) {
+  const rows=await queryRows("INSERT INTO streak_bonus_awards(member_id,streak_end_week,order_id,amount_cents,status,family_id) SELECT $1,$2,$3,$4,'PENDING',$5 FROM members WHERE id=$1 AND family_id=$5 ON CONFLICT(member_id,streak_end_week) DO UPDATE SET order_id=EXCLUDED.order_id,amount_cents=EXCLUDED.amount_cents,status=EXCLUDED.status,family_id=EXCLUDED.family_id WHERE streak_bonus_awards.status='CANCELLED' RETURNING order_id",
+    [memberId,endWeek,orderId,amountCents,familyId],executor);
+  if(!rows.length) throw new Error("Saving streak match is already reserved, completed, or the member is outside this family");
 }
 export async function creditAllowance(memberId:string,cents:number,ref:string,label:string,executor?:Queryable) {
   // Credit the teen's own family, not the legacy default (PayPal webhooks carry no session).
@@ -352,14 +355,14 @@ export async function creditAllowance(memberId:string,cents:number,ref:string,la
   await addLedger({member_id:memberId,bucket:"jar",amount_cents:jar,kind:"allowance",memo:`Umbrella fund share (${jar_percent}%)`,paypal_ref:ref},executor,familyId);
   return {spend:cents-jar,jar};
 }
-export async function familySnapshot(familyId="legacy-family") {
+export async function familySnapshot(familyId:string) {
   const teens=await getTeens(familyId);
   return {teens:await Promise.all(teens.map(async t=>({...t,balances:await balances(t.id,undefined,familyId)}))),rules:await getRules(undefined,familyId)};
 }
-export async function cancelStreakBonus(orderId:string) {
+export async function cancelStreakBonus(orderId:string,familyId:string) {
   return withTransaction(async client=>{
-    const changed=await execute("UPDATE payments SET status='CANCELLED' WHERE order_id=$1 AND method='streak_bonus' AND status='CREATED'",[orderId],client);
-    if(changed) await execute("UPDATE streak_bonus_awards SET status='CANCELLED' WHERE order_id=$1 AND status='PENDING'",[orderId],client);
+    const changed=await execute("UPDATE payments SET status='CANCELLED' WHERE order_id=$1 AND family_id=$2 AND method='streak_bonus' AND status='CREATED'",[orderId,familyId],client);
+    if(changed) await execute("UPDATE streak_bonus_awards SET status='CANCELLED' WHERE order_id=$1 AND family_id=$2 AND status='PENDING'",[orderId,familyId],client);
     return changed>0;
   });
 }

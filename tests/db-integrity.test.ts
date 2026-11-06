@@ -27,21 +27,27 @@ test("Neon PostgreSQL data layer preserves payment idempotency and rate limits",
     await t.test("settles a PayPal capture only for the exact amount and only once",async()=>{
       await db.queryRows("INSERT INTO payments(order_id,member_id,amount_cents,method,status) VALUES('LIVE-ORDER-1','tobi',1200,'paypal','CREATED')");
       const before=await db.balances("tobi");
-      const result=await settlePayment("LIVE-ORDER-1","CAPTURE-1",{value:"12.00",currencyCode:"USD"});
+      const result=await settlePayment("LIVE-ORDER-1","CAPTURE-1",{value:"12.00",currencyCode:"USD"},"legacy-family");
       assert.equal(result.alreadySettled,false);
       const after=await db.balances("tobi");
       assert.equal(after.spend+after.jar-before.spend-before.jar,1200);
-      const duplicate=await settlePayment("LIVE-ORDER-1","CAPTURE-RETRY",{value:"99.99",currencyCode:"USD"});
+      const duplicate=await settlePayment("LIVE-ORDER-1","CAPTURE-RETRY",{value:"99.99",currencyCode:"USD"},"legacy-family");
       assert.equal(duplicate.alreadySettled,true);
       assert.deepEqual(await db.balances("tobi"),after);
     });
     await t.test("rejects mismatched amounts and currencies without ledger writes",async()=>{
       await db.queryRows("INSERT INTO payments(order_id,member_id,amount_cents,method,status) VALUES('LIVE-ORDER-2','zara',1500,'paypal','CREATED')");
       const before=await db.balances("zara");
-      await assert.rejects(()=>settlePayment("LIVE-ORDER-2","CAPTURE-2",{value:"15.01",currencyCode:"USD"}),/amount or currency/);
-      await assert.rejects(()=>settlePayment("LIVE-ORDER-2","CAPTURE-2",{value:"15.00",currencyCode:"EUR"}),/amount or currency/);
+      await assert.rejects(()=>settlePayment("LIVE-ORDER-2","CAPTURE-2",{value:"15.01",currencyCode:"USD"},"legacy-family"),/amount or currency/);
+      await assert.rejects(()=>settlePayment("LIVE-ORDER-2","CAPTURE-2",{value:"15.00",currencyCode:"EUR"},"legacy-family"),/amount or currency/);
       assert.deepEqual(await db.balances("zara"),before);
       const [payment]=await db.queryRows<{status:string}>("SELECT status FROM payments WHERE order_id='LIVE-ORDER-2'");
+      assert.equal(payment.status,"CREATED");
+    });
+    await t.test("a parent from another family cannot settle a payment order",async()=>{
+      await db.queryRows("INSERT INTO payments(order_id,member_id,amount_cents,method,status,family_id) VALUES('LIVE-ORDER-3','tobi',1200,'paypal','CREATED','legacy-family')");
+      await assert.rejects(()=>settlePayment("LIVE-ORDER-3","CAPTURE-OTHER",{value:"12.00",currencyCode:"USD"},"family-other"),/Unknown order/);
+      const [payment]=await db.queryRows<{status:string}>("SELECT status FROM payments WHERE order_id='LIVE-ORDER-3'");
       assert.equal(payment.status,"CREATED");
     });
     await t.test("enforces a bounded account rate limit",async()=>{
@@ -52,6 +58,20 @@ test("Neon PostgreSQL data layer preserves payment idempotency and rate limits",
       assert.equal(blocked.allowed,false);
       assert.equal(blocked.remaining,0);
       assert.ok(blocked.retryAfterSeconds>0);
+    });
+    await t.test("authenticates a family teen with a numeric PIN",async()=>{
+      const {hashSecret,verifyFamilyLogin}=await import("../src/lib/auth");
+      const parentPassword="parent-password-123";
+      const family=await db.createFamilyAccount("Test Parent",await hashSecret(parentPassword));
+      const teen=await db.addTeenToFamily(family.id,"Test Teen",await hashSecret("123456"));
+      const valid=await verifyFamilyLogin("teen",family.code,"123456",teen.id);
+      assert.deepEqual(valid,{familyId:family.id,memberId:teen.id});
+      assert.equal(await verifyFamilyLogin("teen",family.code,"654321",teen.id),null);
+      const parent=await verifyFamilyLogin("parent",family.code,parentPassword);
+      assert.deepEqual(parent,{familyId:family.id,memberId:`parent_${family.id}`});
+      assert.equal(await verifyFamilyLogin("parent",family.code,"short"),null);
+      assert.equal(await verifyFamilyLogin("parent",family.code,"x".repeat(129)),null);
+      assert.equal(await verifyFamilyLogin("parent","X".repeat(5000),parentPassword),null);
     });
   } finally { await pool.end(); }
 });

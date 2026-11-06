@@ -475,9 +475,9 @@ function ParentClaim({ claim, teenName, state, onDone, onError }: { claim: Claim
       </div>
       <AiPanel claim={claim} />
       {photoOpen && claim.photo_file && (
-        <div role="dialog" aria-modal="true" aria-label="Claim photo preview" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4" onClick={() => setPhotoOpen(false)}>
+        <div role="dialog" aria-modal="true" aria-label="Claim photo preview" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4">
           <button type="button" className="absolute right-4 top-4 rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg" onClick={() => setPhotoOpen(false)}>Close</button>
-          <img src={`/api/photos/${claim.id}`} alt="Enlarged claim evidence" className="max-h-[85vh] max-w-full rounded-xl object-contain shadow-2xl" onClick={(e) => e.stopPropagation()} />
+          <img src={`/api/photos/${claim.id}`} alt="Enlarged claim evidence" className="max-h-[85vh] max-w-full rounded-xl object-contain shadow-2xl" />
         </div>
       )}
       <div className="mt-3 flex flex-wrap items-end gap-2">

@@ -14,5 +14,5 @@ export async function POST(req:Request) {
     const sub=await createAllowanceSubscription({teenName:teen.name,cents:teen.allowance_cents,returnUrl:`${origin}/api/subscribe/return?member=${teen.id}`,cancelUrl:`${origin}/?subscribe=cancelled`});
     await saveSubscription(sub.id,teen.id,teen.allowance_cents);
     return Response.json(sub);
-  } catch(e){return Response.json({error:(e as Error).message},{status:502});}
+  } catch(e){console.error("PayPal subscription creation failed:",e);return Response.json({error:"Could not start the PayPal subscription. Please try again."},{status:502,headers:{"Cache-Control":"no-store"}});}
 }

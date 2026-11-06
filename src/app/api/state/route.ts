@@ -8,7 +8,7 @@ export async function GET(req:Request) {
   if(!session)return Response.json({error:"Sign in to continue"},{status:401});
   const allMembers=await getMembers(session.familyId);
   const members=await Promise.all((session.role==="parent"?allMembers:allMembers.filter(m=>m.id===session.memberId)).map(async m=>({
-    ...m,balances:m.role==="teen"?await balances(m.id,undefined,session.familyId):null,streak:m.role==="teen"?await getStreakStatus(m.id,undefined,session.familyId):null,
+    ...m,balances:m.role==="teen"?await balances(m.id,undefined,session.familyId):null,streak:m.role==="teen"?await getStreakStatus(m.id,session.familyId):null,
   })));
   const claimRows=await getClaims(session.role==="parent"?undefined:session.memberId,session.familyId);
   const claims=claimRows.map(c=>({...c,ai:c.ai?JSON.parse(c.ai):null}));
