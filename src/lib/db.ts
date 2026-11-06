@@ -295,8 +295,8 @@ export async function saveSubscription(subscriptionId:string,memberId:string,amo
   const [owner]=await queryRows<{family_id:string}>("SELECT family_id FROM members WHERE id=$1",[memberId]);
   await execute("INSERT INTO subscriptions(subscription_id,member_id,amount_cents,status,family_id) VALUES($1,$2,$3,'APPROVAL_PENDING',$4)",[subscriptionId,memberId,amountCents,owner?.family_id ?? "legacy-family"]);
 }
-export async function updateSubscriptionStatus(subscriptionId:string,status:string) {
-  await execute("UPDATE subscriptions SET status=$1 WHERE subscription_id=$2",[status,subscriptionId]);
+export async function updateSubscriptionStatus(subscriptionId:string,status:string,familyId?:string) {
+  await execute("UPDATE subscriptions SET status=$1 WHERE subscription_id=$2 AND ($3::text IS NULL OR family_id=$3)",[status,subscriptionId,familyId??null]);
 }
 export async function recordSubscriptionPayment(input:{eventId:string;eventType:string;subscriptionId:string;saleId:string;amountCents:number}) {
   return withTransaction(async client=>{
@@ -313,8 +313,8 @@ export async function recordSubscriptionPayment(input:{eventId:string;eventType:
     return {credited:true,duplicate:false};
   });
 }
-export async function recordMockSubscriptionPayment(subscriptionId:string) {
-  const [sub]=await queryRows<{amount_cents:number}>("SELECT amount_cents FROM subscriptions WHERE subscription_id=$1",[subscriptionId]);
+export async function recordMockSubscriptionPayment(subscriptionId:string,familyId?:string) {
+  const [sub]=await queryRows<{amount_cents:number}>("SELECT amount_cents FROM subscriptions WHERE subscription_id=$1 AND ($2::text IS NULL OR family_id=$2)",[subscriptionId,familyId??null]);
   if(!sub) throw new Error("Mock subscription is not registered");
   return recordSubscriptionPayment({eventId:`mock-event-${subscriptionId}`,eventType:"PAYMENT.SALE.COMPLETED",subscriptionId,saleId:`mock-sale-${subscriptionId}`,amountCents:sub.amount_cents});
 }
@@ -338,9 +338,9 @@ export async function getStreakStatus(memberId:string,executor?:Queryable,family
   const bonusCents=eligible?Math.round(contributed*(await getRules(executor,familyId)).streak_bonus_percent/100):0;
   return {weeks,bonusCents,eligible,alreadyMatched,endWeek};
 }
-export async function reserveStreakBonus(memberId:string,endWeek:string,orderId:string,amountCents:number,executor?:Queryable) {
-  const rows=await queryRows("INSERT INTO streak_bonus_awards(member_id,streak_end_week,order_id,amount_cents,status) VALUES($1,$2,$3,$4,'PENDING') ON CONFLICT(member_id,streak_end_week) DO UPDATE SET order_id=EXCLUDED.order_id,amount_cents=EXCLUDED.amount_cents,status=EXCLUDED.status WHERE streak_bonus_awards.status='CANCELLED' RETURNING order_id",
-    [memberId,endWeek,orderId,amountCents],executor);
+export async function reserveStreakBonus(memberId:string,endWeek:string,orderId:string,amountCents:number,executor?:Queryable,familyId="legacy-family") {
+  const rows=await queryRows("INSERT INTO streak_bonus_awards(member_id,streak_end_week,order_id,amount_cents,status,family_id) VALUES($1,$2,$3,$4,'PENDING',$5) ON CONFLICT(member_id,streak_end_week) DO UPDATE SET order_id=EXCLUDED.order_id,amount_cents=EXCLUDED.amount_cents,status=EXCLUDED.status,family_id=EXCLUDED.family_id WHERE streak_bonus_awards.status='CANCELLED' RETURNING order_id",
+    [memberId,endWeek,orderId,amountCents,familyId],executor);
   if(!rows.length) throw new Error("Saving streak match is already reserved or completed");
 }
 export async function creditAllowance(memberId:string,cents:number,ref:string,label:string,executor?:Queryable) {
