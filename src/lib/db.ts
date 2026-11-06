@@ -82,6 +82,51 @@ async function ensureSchema() {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (member_id, streak_end_week)
         );
         ALTER TABLE rules ADD COLUMN IF NOT EXISTS streak_bonus_percent INTEGER NOT NULL DEFAULT 10;
+
+      -- Multi-family foundation. Existing demo data is preserved in one legacy family.
+      CREATE TABLE IF NOT EXISTS families (
+        id TEXT PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE,
+        parent_name TEXT NOT NULL,
+        password_hash TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      INSERT INTO families(id,code,parent_name,password_hash)
+        VALUES ('legacy-family','LEGACY-0000','Ada',NULL)
+        ON CONFLICT (id) DO NOTHING;
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE ledger ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE claims ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS family_id TEXT;
+      ALTER TABLE streak_bonus_awards ADD COLUMN IF NOT EXISTS family_id TEXT;
+      UPDATE members SET family_id='legacy-family' WHERE family_id IS NULL;
+      UPDATE ledger l SET family_id=m.family_id FROM members m WHERE l.member_id=m.id AND l.family_id IS NULL;
+      UPDATE claims c SET family_id=m.family_id FROM members m WHERE c.member_id=m.id AND c.family_id IS NULL;
+      UPDATE payments p SET family_id=m.family_id FROM members m WHERE p.member_id=m.id AND p.family_id IS NULL;
+      UPDATE subscriptions s SET family_id=m.family_id FROM members m WHERE s.member_id=m.id AND s.family_id IS NULL;
+      UPDATE streak_bonus_awards a SET family_id=m.family_id FROM members m WHERE a.member_id=m.id AND a.family_id IS NULL;
+      ALTER TABLE members ALTER COLUMN family_id SET NOT NULL;
+      ALTER TABLE ledger ALTER COLUMN family_id SET NOT NULL;
+      ALTER TABLE claims ALTER COLUMN family_id SET NOT NULL;
+      ALTER TABLE payments ALTER COLUMN family_id SET NOT NULL;
+      ALTER TABLE subscriptions ALTER COLUMN family_id SET NOT NULL;
+      ALTER TABLE streak_bonus_awards ALTER COLUMN family_id SET NOT NULL;
+      CREATE INDEX IF NOT EXISTS members_family_role_idx ON members(family_id,role,name);
+      CREATE INDEX IF NOT EXISTS ledger_family_created_idx ON ledger(family_id,created_at DESC,id DESC);
+      CREATE INDEX IF NOT EXISTS claims_family_created_idx ON claims(family_id,id DESC);
+      CREATE INDEX IF NOT EXISTS payments_family_idx ON payments(family_id,created_at DESC);
+      CREATE INDEX IF NOT EXISTS subscriptions_family_idx ON subscriptions(family_id,created_at DESC);
+      CREATE TABLE IF NOT EXISTS family_rules (
+        family_id TEXT PRIMARY KEY REFERENCES families(id),
+        jar_percent INTEGER NOT NULL, deductible_cents INTEGER NOT NULL,
+        max_payout_cents INTEGER NOT NULL, streak_bonus_percent INTEGER NOT NULL DEFAULT 10,
+        covered JSONB NOT NULL, excluded JSONB NOT NULL, repair_shop_email TEXT NOT NULL
+      );
+      INSERT INTO family_rules(family_id,jar_percent,deductible_cents,max_payout_cents,streak_bonus_percent,covered,excluded,repair_shop_email)
+        SELECT 'legacy-family',jar_percent,deductible_cents,max_payout_cents,streak_bonus_percent,covered,excluded,repair_shop_email
+        FROM rules WHERE id=1 ON CONFLICT (family_id) DO NOTHING;
+
       `);
       const count = await client.query("SELECT COUNT(*)::int AS n FROM members");
       if (Number(count.rows[0]?.n ?? 0) === 0 && process.env.PARAGUAS_SKIP_SEED !== "true") await seed(client);
