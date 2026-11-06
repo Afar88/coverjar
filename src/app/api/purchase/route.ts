@@ -15,7 +15,7 @@ export async function POST(req:Request) {
       await client.query("SELECT id FROM members WHERE id=$1 FOR UPDATE",[teen.id]);
       if(cents>(await balances(teen.id,client,session.familyId)).spend)throw new Error("Not enough spending money");
       await addLedger({member_id:teen.id,bucket:"spend",amount_cents:-cents,kind:"purchase",memo:String(body.memo||"Purchase").slice(0,80),paypal_ref:null},client,session.familyId);
-      return balances(teen.id,client);
+      return balances(teen.id,client,session.familyId);
     });
     return Response.json(result);
   } catch(e) {
