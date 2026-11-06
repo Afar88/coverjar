@@ -23,5 +23,8 @@ export async function POST(req:Request) {
       return Response.json({received:true,...result});
     }
     return Response.json({received:true,ignored:true});
-  } catch(error){return Response.json({error:(error as Error).message||"Webhook processing failed"},{status:500});}
+  } catch(error){
+    console.error("PayPal webhook processing failed",error);
+    return Response.json({error:"Webhook processing failed"},{status:500,headers:{"Cache-Control":"no-store"}});
+  }
 }
