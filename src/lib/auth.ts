@@ -75,7 +75,11 @@ export async function verifySecret(secretValue:string,encoded:string|null|undefi
 }
 
 export async function verifyFamilyLogin(role:Session["role"],familyCode:string,credential:string,memberId?:string) {
-  const family=await getFamilyByCode(familyCode);
+  const normalizedCode=familyCode.trim().toUpperCase();
+  if(!/^FAM-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(normalizedCode)||credential.length>128)return null;
+  if(role==="parent"&&(credential.length<10||credential.length>128))return null;
+  if(role==="teen"&&!/^\d{4,12}$/.test(credential))return null;
+  const family=await getFamilyByCode(normalizedCode);
   if(!family)return null;
   if(role==="parent") {
     if(!await verifySecret(credential,family.password_hash))return null;
