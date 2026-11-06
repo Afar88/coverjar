@@ -1,4 +1,5 @@
 import { Pool } from "@neondatabase/serverless";
+import { randomBytes, randomUUID } from "node:crypto";
 
 export type Member = {
   id: string; name: string; role: "parent" | "teen"; age: number | null;
@@ -233,6 +234,60 @@ export async function insertClaim(input:{member_id:string;title:string;descripti
 }
 export async function setAllowance(memberId:string,cents:number) {
   return execute("UPDATE members SET allowance_cents=$1 WHERE id=$2 AND role='teen'",[cents,memberId]);
+}
+
+export type FamilyAccount = { id:string; code:string; parent_name:string; password_hash:string };
+
+function makeFamilyCode() {
+  const alphabet="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes=randomBytes(8);
+  let code="";
+  for(const byte of bytes) code+=alphabet[byte%alphabet.length];
+  return `FAM-${code.slice(0,4)}-${code.slice(4)}`;
+}
+
+/** Create a family and its parent profile atomically. The caller must hash the password first. */
+export async function createFamilyAccount(parentName:string,passwordHash:string) {
+  const name=parentName.trim().slice(0,80);
+  if(name.length<2||passwordHash.length<40) throw new Error("A valid parent name and password hash are required");
+  return withTransaction(async client=>{
+    const id=randomUUID();
+    let code="";
+    for(let attempt=0;attempt<5;attempt++) {
+      code=makeFamilyCode();
+      const exists=await queryRows("SELECT 1 FROM families WHERE code=$1",[code],client);
+      if(!exists.length) break;
+      code="";
+    }
+    if(!code) throw new Error("Could not generate a family code. Please try again.");
+    await execute("INSERT INTO families(id,code,parent_name,password_hash) VALUES($1,$2,$3,$4)",[id,code,name,passwordHash],client);
+    await execute("INSERT INTO members(id,name,role,age,allowance_cents,payout_email,emoji,family_id) VALUES($1,$2,'parent',NULL,0,NULL,'👨‍👩‍👧',$3)",[`parent_${id}`,name,id],client);
+    await execute(`INSERT INTO family_rules(family_id,jar_percent,deductible_cents,max_payout_cents,streak_bonus_percent,covered,excluded,repair_shop_email)
+      SELECT $1,jar_percent,deductible_cents,max_payout_cents,streak_bonus_percent,covered,excluded,repair_shop_email FROM rules WHERE id=1
+      ON CONFLICT(family_id) DO NOTHING`,[id],client);
+    return {id,code,parent_name:name};
+  });
+}
+
+export async function getFamilyByCode(code:string) {
+  const normalized=code.trim().toUpperCase();
+  return (await queryRows<FamilyAccount>("SELECT id,code,parent_name,password_hash FROM families WHERE code=$1",[normalized]))[0];
+}
+
+export async function addTeenToFamily(familyId:string,name:string,pinHash:string) {
+  const cleanName=name.trim().slice(0,80);
+  if(cleanName.length<1||pinHash.length<40) throw new Error("A valid teen name and PIN hash are required");
+  const id=randomUUID();
+  await withTransaction(async client=>{
+    const family=await queryRows("SELECT id FROM families WHERE id=$1 FOR UPDATE",[familyId],client);
+    if(!family.length) throw new Error("Family not found");
+    await execute("INSERT INTO members(id,name,role,age,allowance_cents,payout_email,emoji,family_id,pin_hash) VALUES($1,$2,'teen',NULL,0,NULL,'🙂',$3,$4)",[id,cleanName,familyId,pinHash],client);
+  });
+  return {id,name:cleanName,role:"teen" as const};
+}
+
+export async function getFamilyMember(id:string,familyId:string) {
+  return (await queryRows<Member>("SELECT * FROM members WHERE id=$1 AND family_id=$2",[id,familyId]))[0];
 }
 
 export async function consumeRateLimit(rateKey:string,limit:number,windowMs:number) {
