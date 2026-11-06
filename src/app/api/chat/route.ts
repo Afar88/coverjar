@@ -45,8 +45,8 @@ export async function POST(req:Request) {
         ...(a.deductible_dollars!==undefined?{deductible_cents:Math.round(a.deductible_dollars*100)}:{}),
         ...(a.max_payout_dollars!==undefined?{max_payout_cents:Math.round(a.max_payout_dollars*100)}:{}),
       })}),
-      paypal_recent_transactions:tool({description:"List the most recent PayPal transactions for the connected merchant account",inputSchema:z.object({days:z.number().int().min(1).max(90).default(7)}),execute:async({days})=>listPaypalTransactions(days)}),
-      paypal_subscription_status:tool({description:"Look up the status and next billing date of a PayPal subscription using its subscription ID",inputSchema:z.object({subscription_id:z.string().min(5).max(128)}),execute:async({subscription_id})=>getPaypalSubscription(subscription_id)}),
+      paypal_recent_transactions:tool({description:"List the most recent PayPal transactions for the connected merchant account",inputSchema:z.object({days:z.number().int().min(1).max(90).default(7)}),execute:async({days})=>{try{return await listPaypalTransactions(days)}catch{return {unavailable:true,message:"PayPal transaction lookup is temporarily unavailable. You can still ask me about family balances and claims."}}}}),
+      paypal_subscription_status:tool({description:"Look up the status and next billing date of a PayPal subscription using its subscription ID",inputSchema:z.object({subscription_id:z.string().min(5).max(128)}),execute:async({subscription_id})=>{try{return await getPaypalSubscription(subscription_id)}catch{return {unavailable:true,message:"PayPal subscription lookup is temporarily unavailable. Please check the subscription in PayPal and try again."}}}}),
     };
   }
   let timeout: ReturnType<typeof setTimeout> | undefined;
