@@ -332,7 +332,7 @@ export async function getStreakStatus(memberId:string,familyId:string,executor?:
   let weeks=1;
   for(let i=1;i<rows.length;i++){const prev=new Date(rows[i-1].week_start+"T00:00:00Z");const next=new Date(rows[i].week_start+"T00:00:00Z");if((prev.getTime()-next.getTime())/86400000!==7)break;weeks++;}
   const endWeek=rows[0].week_start;
-  const match=await queryRows("SELECT 1 FROM streak_bonus_awards WHERE member_id=$1 AND streak_end_week=$2 AND status IN ('PENDING','COMPLETED')",[memberId,endWeek],executor);
+  const match=await queryRows("SELECT 1 FROM streak_bonus_awards WHERE member_id=$1 AND streak_end_week=$2 AND family_id=$3 AND status IN ('PENDING','COMPLETED')",[memberId,endWeek,familyId],executor);
   const alreadyMatched=match.length>0; const eligible=weeks>=4&&!alreadyMatched;
   const contributed=rows.slice(0,4).reduce((sum,row)=>sum+Number(row.contributed),0);
   const bonusCents=eligible?Math.round(contributed*(await getRules(executor,familyId)).streak_bonus_percent/100):0;
