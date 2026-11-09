@@ -5,7 +5,7 @@ export const fmt = (cents: number) => (cents < 0 ? "-" : "") + "$" + (Math.abs(c
 
 export function Card({ title, children, right }: { title?: ReactNode; children: ReactNode; right?: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_2px_12px_rgba(15,23,42,0.035)] sm:p-6">
+    <section className="app-card rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_2px_12px_rgba(15,23,42,0.035)] sm:p-6">
       {(title || right) && (
         <div className="mb-5 flex items-center justify-between gap-3">
           <h2 className="text-[15px] font-semibold tracking-tight text-slate-900">{title}</h2>
@@ -41,7 +41,7 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-xl px-4 py-2.5 text-sm font-semibold tracking-tight transition duration-150 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 ${styles}`}
+      className={`app-button rounded-xl px-4 py-2.5 text-sm font-semibold tracking-tight transition duration-150 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 ${styles}`}\n      data-variant={variant}
     >
       {children}
     </button>
