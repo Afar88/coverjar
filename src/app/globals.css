@@ -168,7 +168,6 @@ input[type="file"]::file-selector-button {
 .metric-card {
   border: 1px solid #e1ebe5;
   border-radius: 1.15rem;
-  background: rgba(255,255,255,.95);
   padding: 1rem;
   box-shadow: 0 5px 18px rgba(19,48,36,.04);
 }
