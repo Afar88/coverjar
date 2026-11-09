@@ -41,7 +41,8 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`app-button rounded-xl px-4 py-2.5 text-sm font-semibold tracking-tight transition duration-150 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 ${styles}`}\n      data-variant={variant}
+      className={`app-button rounded-xl px-4 py-2.5 text-sm font-semibold tracking-tight transition duration-150 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 ${styles}`}
+      data-variant={variant}
     >
       {children}
     </button>
