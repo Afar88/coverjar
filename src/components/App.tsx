@@ -200,7 +200,8 @@ export default function App() {
           <p className="mt-1 text-sm text-slate-500">Family money, made clearer. AI helps review claims; parents stay in control.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <DashboardMenu links={session.role === "parent" ? PARENT_NAV : TEEN_NAV} />\n          <Badge>{session.role === "parent" ? "Parent account" : current?.name}</Badge>
+          <DashboardMenu links={session.role === "parent" ? PARENT_NAV : TEEN_NAV} />
+          <Badge>{session.role === "parent" ? "Parent account" : current?.name}</Badge>
           <Button variant="secondary" onClick={signOut} disabled={busy}>Log out</Button>
         </div>
       </header>
