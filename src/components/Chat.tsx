@@ -67,7 +67,8 @@ export function Chat({ persona, memberId, title, intro, suggestions }: { persona
           send(input);
         }}
       >
-        <label className="sr-only" htmlFor="assistant-message">Message the assistant</label>\n        <input id="assistant-message" className={inputCls} value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask anything…" autoComplete="off" />
+        <label className="sr-only" htmlFor="assistant-message">Message the assistant</label>
+        <input id="assistant-message" className={inputCls} value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask anything…" autoComplete="off" />
         <Button type="submit" disabled={busy || !input.trim()}>Send</Button>
       </form>
     </Card>
