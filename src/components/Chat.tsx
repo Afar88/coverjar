@@ -31,7 +31,7 @@ export function Chat({ persona, memberId, title, intro, suggestions }: { persona
 
   return (
     <Card title={title}>
-      <div className="mb-3 max-h-80 space-y-3 overflow-y-auto">
+      <div className="mb-3 max-h-80 space-y-3 overflow-y-auto" aria-live="polite" aria-relevant="additions">
         <p className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900">{intro}</p>
         {messages.map((m, i) => (
           <div key={i} className={m.role === "user" ? "text-right" : ""}>
@@ -41,7 +41,7 @@ export function Chat({ persona, memberId, title, intro, suggestions }: { persona
             {m.tools && m.tools.length > 0 && <div className="mt-1 text-xs text-slate-500">Used: {m.tools.join(", ")}</div>}
           </div>
         ))}
-        {busy && <div className="text-sm text-slate-500">Thinking…</div>}
+        {busy && <div className="flex items-center gap-2 text-sm text-slate-500" role="status"><span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-500" />Thinking…</div>}
       </div>
       {messages.length === 0 && suggestions.length > 0 && (
         <div className="mb-3">
@@ -67,8 +67,9 @@ export function Chat({ persona, memberId, title, intro, suggestions }: { persona
           send(input);
         }}
       >
-        <input className={inputCls} value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask anything…" />
-        <Button type="submit" disabled={busy}>Send</Button>
+        <label className="sr-only" htmlFor="assistant-message">Message the assistant</label>
+        <input id="assistant-message" className={inputCls} value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask anything…" autoComplete="off" />
+        <Button type="submit" disabled={busy || !input.trim()}>Send</Button>
       </form>
     </Card>
   );
