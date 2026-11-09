@@ -8,8 +8,7 @@ Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 
 ## How to test in 2 minutes
 
-**Preview for this PR:** [Open the current verification build](https://paraguas-git-fix-family-iso-d8dbde-destinymomobu-2325s-projects.vercel.app)  
-**Production domain:** [paraguas-sigma.vercel.app](https://paraguas-sigma.vercel.app) — still serves the current `main` deployment; it does not include this PR yet.
+**Production domain:** [paraguas-sigma.vercel.app](https://paraguas-sigma.vercel.app) — serves the latest Ready deployment from `main`. Preview deployment URLs are temporary and should be taken from the relevant GitHub pull request or Vercel deployment page.
 
 **Login:** There is no shared production demo account. Select **Create a family**, register a parent with a password, and save the generated family code. The local-only demo passcodes are `2468` (parent) and `1357` (teen); they are not production credentials.
 
@@ -20,7 +19,7 @@ Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 5. **Sandbox (20 sec):** Complete checkout with a PayPal Sandbox buyer account. The allowance should be credited only after the verified `PAYMENT.SALE.COMPLETED` webhook arrives.
 6. **Claim (optional):** Sign in as the teen, upload a real JPEG/PNG/WebP photo with a claim, then return as the parent to review it.
 
-> **Deployment prerequisite:** The current Vercel project has the application secrets configured for Preview, but the production environment is still missing the app's database/session/Gemini/PayPal configuration. The private Blob token is connected to Production. Until the Production variables are configured and a fresh Production deployment is Ready, use a correctly configured Preview deployment for end-to-end testing. Keep PayPal in Sandbox; do not use live credentials for this walkthrough.
+> **Deployment note:** Production uses the Neon integration's `POSTGRES_URL` when `DATABASE_URL` is not set; either variable is accepted by the database adapter. Confirm the PayPal environment is `SANDBOX` before testing any payment or payout flow. Do not infer the PayPal environment from the presence of credentials, and never use live credentials for this walkthrough.
 
 
 ## How it works
@@ -57,7 +56,7 @@ npm run dev
 
 Open http://localhost:3000.
 
-For local development, configure a Neon database and a private Vercel Blob store (use `vercel env pull` to retrieve the Blob token). `DATABASE_URL` is required for login and all database-backed features; `BLOB_READ_WRITE_TOKEN` is required for claim-photo uploads. Gemini and PayPal credentials can be omitted to use the app's simulated/demo provider paths. Local demo passcodes are `2468` (parent) and `1357` (teen); never use them in production.
+For local development, configure a Neon database and a private Vercel Blob store (use `vercel env pull` to retrieve the Blob token). `DATABASE_URL` or `POSTGRES_URL` is required for login and all database-backed features; `BLOB_READ_WRITE_TOKEN` is required for claim-photo uploads. Gemini and PayPal credentials can be omitted to use the app's simulated/demo provider paths. Local demo passcodes are `2468` (parent) and `1357` (teen); never use them in production.
 
 ### Family accounts
 
@@ -67,7 +66,8 @@ Each parent can register their own family from the login screen and gets a famil
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | Neon PostgreSQL pooled connection string |
+| `DATABASE_URL` | Optional explicit Neon PostgreSQL pooled connection string override (takes precedence over `POSTGRES_URL`) |
+| `POSTGRES_URL` | Neon integration connection string fallback when `DATABASE_URL` is unset |
 | `BLOB_READ_WRITE_TOKEN` | Token for the Vercel Blob **Private** store |
 | `PARAGUAS_SESSION_SECRET` | Required in production; random secret with at least 32 characters |
 | `PARAGUAS_PARENT_PIN` | Parent login passcode; private 4–12 digit value |
