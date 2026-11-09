@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import type { AppState, Claim, Member } from "./types";
@@ -19,6 +19,23 @@ const RETURN_MESSAGES: Record<string, string> = {
   "subscribe=cancelled": "Subscription setup cancelled.",
   "subscribe=error": "Couldn't confirm the subscription.",
 };
+
+const PARENT_NAV = [
+  { href: "#family", label: "Family overview" },
+  { href: "#review-claims", label: "Review claims" },
+  { href: "#claim-history", label: "Claim history" },
+  { href: "#family-activity", label: "Family activity" },
+  { href: "#family-rules", label: "Family rules" },
+  { href: "#family-assistant", label: "AI assistant" },
+];
+
+const TEEN_NAV = [
+  { href: "#teen-money", label: "My money" },
+  { href: "#file-claim", label: "File a claim" },
+  { href: "#my-claims", label: "My claims" },
+  { href: "#teen-activity", label: "My activity" },
+  { href: "#money-coach", label: "Money coach" },
+];
 
 export default function App() {
   const params = useSearchParams();
@@ -176,14 +193,14 @@ export default function App() {
 
   const current = session.role === "teen" ? state.members.find((m) => m.id === session.memberId) : null;
   return (
-    <div className="mx-auto min-h-screen max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
+    <div className="app-shell mx-auto min-h-screen max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 pb-5">
         <div>
           <h1 className="text-[1.7rem] font-bold tracking-[-0.055em] text-slate-950"><span aria-hidden>☂️ </span>Para<span className="text-emerald-600">guas</span></h1>
           <p className="mt-1 text-sm text-slate-500">Family money, made clearer. AI helps review claims; parents stay in control.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge>{session.role === "parent" ? "Parent account" : current?.name}</Badge>
+          <DashboardMenu links={session.role === "parent" ? PARENT_NAV : TEEN_NAV} />\n          <Badge>{session.role === "parent" ? "Parent account" : current?.name}</Badge>
           <Button variant="secondary" onClick={signOut} disabled={busy}>Log out</Button>
         </div>
       </header>
@@ -192,6 +209,52 @@ export default function App() {
       {session.role === "parent" ? <ParentView state={state} onDone={onDone} onError={onError} /> :
         current ? <TeenView key={current.id} teen={current} familyId={session.familyId} state={state} onDone={onDone} onError={onError} /> :
         <p className="text-sm text-rose-700">Teen profile unavailable. Sign out and sign in again.</p>}
+    </div>
+  );
+}
+
+function DashboardMenu({ links }: { links: { href: string; label: string }[] }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  return (
+    <div className="dashboard-menu" ref={root}>
+      <button
+        type="button"
+        className="dashboard-menu__trigger"
+        aria-expanded={open}
+        aria-controls="dashboard-navigation"
+        aria-label={open ? "Close dashboard navigation" : "Open dashboard navigation"}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="dashboard-menu__icon" aria-hidden="true"><span /><span /><span /></span>
+        <span>Menu</span>
+      </button>
+      {open && (
+        <nav id="dashboard-navigation" className="dashboard-menu__panel" aria-label="Dashboard navigation">
+          {links.map((link) => (
+            <a key={link.href} className="dashboard-menu__link" href={link.href} onClick={() => setOpen(false)}>
+              {link.label}
+            </a>
+          ))}
+        </nav>
+      )}
     </div>
   );
 }
@@ -245,11 +308,6 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
           <p className="mt-1 text-2xl font-semibold tracking-tight text-amber-950">{pending.length}</p>
         </div>
       </section>
-      <nav aria-label="Parent dashboard sections" className="sticky top-2 z-20 -mx-1 flex gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white/95 p-2 shadow-sm backdrop-blur sm:mx-0">
-        {[["#family","Family"],["#review-claims","Claims"],["#claim-history","History"],["#family-activity","Activity"],["#family-rules","Rules"],["#family-assistant","AI assistant"]].map(([href,label]) => (
-          <a key={href} href={href} className="shrink-0 rounded-lg px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-emerald-50 hover:text-emerald-800">{label}</a>
-        ))}
-      </nav>
       <div className="grid items-start gap-5 lg:grid-cols-12 lg:gap-6">
       <div className="space-y-5 lg:col-span-8">
         <div id="family" className="grid scroll-mt-24 gap-4 sm:grid-cols-2">
@@ -644,9 +702,6 @@ function TeenView({ teen, familyId, state, onDone, onError }: { teen: Member; fa
         <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 shadow-sm"><p className="text-xs font-medium text-emerald-700">Umbrella fund</p><p className="mt-1 text-xl font-semibold tracking-tight text-emerald-900">{fmt(b.jar)}</p></div>
         <div className="col-span-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:col-span-1"><p className="text-xs font-medium text-slate-500">My claims</p><p className="mt-1 text-xl font-semibold tracking-tight text-slate-950">{claims.length}</p></div>
       </section>
-      <nav aria-label="Teen dashboard sections" className="sticky top-2 z-20 -mx-1 flex gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white/95 p-2 shadow-sm backdrop-blur sm:mx-0">
-        {[["#teen-money","My money"],["#file-claim","File a claim"],["#my-claims","My claims"],["#teen-activity","Activity"],["#money-coach","Money coach"]].map(([href,label]) => <a key={href} href={href} className="shrink-0 rounded-lg px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-emerald-50 hover:text-emerald-800">{label}</a>)}
-      </nav>
       <div className="grid items-start gap-5 lg:grid-cols-12 lg:gap-6">
       <div className="space-y-5 lg:col-span-8">
         <div id="teen-money" className="grid scroll-mt-24 gap-4 sm:grid-cols-2">
