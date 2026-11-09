@@ -161,7 +161,7 @@ export default function App() {
           <h1 className="text-3xl font-bold tracking-tight"><span aria-hidden>☂️ </span>Para<span className="text-emerald-600">guas</span></h1>
           <p className="mt-2 text-sm text-slate-500">Your family&apos;s allowance and protection fund.</p>
         </div>
-        <form onSubmit={registerMode?registerParent:signIn} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <form onSubmit={registerMode?registerParent:signIn} className="app-card space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           {!registerMode && <div className="flex rounded-xl bg-slate-100 p-1">
             <button type="button" onClick={() => setRole("parent")} className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${role === "parent" ? "bg-white shadow-sm" : "text-slate-500"}`}>Parent</button>
             <button type="button" onClick={() => setRole("teen")} className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${role === "teen" ? "bg-white shadow-sm" : "text-slate-500"}`}>Teen</button>
@@ -205,7 +205,7 @@ export default function App() {
         </div>
       </header>
       {issuedFamilyCode && session.role==="parent" && <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm">Your family code: <strong className="select-all">{issuedFamilyCode}</strong>. Share this code with your teens so they can sign in.</div>}
-      {toast && <div className={`mb-4 rounded-xl px-4 py-3 text-sm ${toast.error ? "bg-rose-50 text-rose-800" : "bg-emerald-50 text-emerald-800"}`}>{toast.msg}</div>}
+      {toast && <div className={`toast-message mb-4 rounded-xl px-4 py-3 text-sm ${toast.error ? "bg-rose-50 text-rose-800" : "bg-emerald-50 text-emerald-800"}`} role="status" aria-live="polite">{toast.msg}</div>}
       {session.role === "parent" ? <ParentView state={state} onDone={onDone} onError={onError} /> :
         current ? <TeenView key={current.id} teen={current} familyId={session.familyId} state={state} onDone={onDone} onError={onError} /> :
         <p className="text-sm text-rose-700">Teen profile unavailable. Sign out and sign in again.</p>}
@@ -291,7 +291,7 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
         <Button type="submit" disabled={addingTeen}>{addingTeen?"Adding…":"Add teen"}</Button>
       </form>
       <section aria-label="Family financial overview" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="metric-card rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs font-medium text-slate-500">Teens</p>
           <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">{teens.length}</p>
         </div>
@@ -299,11 +299,11 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
           <p className="text-xs font-medium text-slate-500">Combined spending</p>
           <p className="mt-1 text-xl font-semibold tracking-tight text-slate-950">{fmt(totalSpend)}</p>
         </div>
-        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 shadow-sm">
+        <div className="metric-card rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 shadow-sm">
           <p className="text-xs font-medium text-emerald-700">Umbrella funds</p>
           <p className="mt-1 text-xl font-semibold tracking-tight text-emerald-900">{fmt(totalJar)}</p>
         </div>
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
+        <div className="metric-card rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
           <p className="text-xs font-medium text-amber-800">Claims to review</p>
           <p className="mt-1 text-2xl font-semibold tracking-tight text-amber-950">{pending.length}</p>
         </div>
@@ -705,7 +705,7 @@ function TeenView({ teen, familyId, state, onDone, onError }: { teen: Member; fa
       <div className="grid items-start gap-5 lg:grid-cols-12 lg:gap-6">
       <div className="space-y-5 lg:col-span-8">
         <div id="teen-money" className="grid scroll-mt-24 gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl bg-slate-900 p-5 text-white">
+          <div className="metric-card rounded-2xl bg-slate-900 p-5 text-white">
             <div className="text-sm text-slate-300">Spending money</div>
             <div className="text-3xl font-bold">{fmt(b.spend)}</div>
             <div className="mt-3 flex gap-2">
@@ -714,7 +714,7 @@ function TeenView({ teen, familyId, state, onDone, onError }: { teen: Member; fa
               <button onClick={logPurchase} className="shrink-0 rounded-lg bg-white px-3 text-sm font-medium text-slate-900">Log</button>
             </div>
           </div>
-          <div className="rounded-2xl bg-emerald-600 p-5 text-white">
+          <div className="metric-card rounded-2xl bg-emerald-600 p-5 text-white">
             <div className="text-sm text-emerald-100">☂️ Umbrella fund</div>
             <div className="text-3xl font-bold">{fmt(b.jar)}</div>
             <p className="mt-3 text-sm text-emerald-50">
