@@ -6,7 +6,7 @@ This branch targets Vercel Functions with Neon PostgreSQL for durable relational
 
 1. Sign in to Vercel with the GitHub account that can access `Afar88/paraguas`.
 2. Import the `Afar88/paraguas` repository.
-3. Select the `feat/vercel-neon-private-blob` branch for the first preview deployment. Do not switch the production branch until the pull request is reviewed and merged.
+3. Keep `main` as the production branch. Use pull-request branches for Preview deployments and promote only reviewed, passing changes.
 4. Keep the framework preset as **Next.js**.
 5. Use Node.js 22.
 6. Do not configure a static build or static output directory.
@@ -21,7 +21,7 @@ Build settings:
 1. In the Vercel project, open **Storage** / **Marketplace** and create or connect a Neon PostgreSQL database.
 2. Create a database/branch for Paraguas (use a separate database branch for preview and production where practical).
 3. Copy the pooled connection string from Neon. Prefer the pooled hostname (the hostname containing `-pooler`) for serverless application traffic.
-4. Add it as `DATABASE_URL` in Vercel Environment Variables for Preview and Production as appropriate.
+4. Confirm Vercel exposes either `DATABASE_URL` or `POSTGRES_URL` in the intended environment. The app accepts both.
 
 The app creates its PostgreSQL tables and indexes on first database access. It seeds the sample family only when the `members` table is empty. Do not point Preview and Production at the same database if you want isolated test data.
 
@@ -39,7 +39,7 @@ Claim evidence is stored under the `claims/` pathname prefix. The database store
 Add these values under Vercel **Settings → Environment Variables**. Never commit real values to Git.
 
 Required:
-- `DATABASE_URL`: pooled Neon PostgreSQL connection string.
+- `DATABASE_URL` or `POSTGRES_URL`: pooled Neon PostgreSQL connection string. The app prefers `DATABASE_URL` when both exist and falls back to the Vercel Neon integration's `POSTGRES_URL`.
 - `BLOB_READ_WRITE_TOKEN`: token from the private Blob store.
 - `PARAGUAS_SESSION_SECRET`: cryptographically random secret with at least 32 characters.
 - Parent passwords are selected during family registration and stored as scrypt hashes in Neon.
