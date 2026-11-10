@@ -47,10 +47,13 @@ export async function POST(req:Request) {
     };
   }
   let requestTimeout: ReturnType<typeof setTimeout> | undefined;
+  const requestController = new AbortController();
   try {
     const response = await Promise.race([
       withGemini(async (model, modelId) => {
         const attemptController = new AbortController();
+        const abortAttempt = () => attemptController.abort();
+        requestController.signal.addEventListener("abort", abortAttempt, { once: true });
         let attemptTimeout: ReturnType<typeof setTimeout> | undefined;
         try {
           return await Promise.race([
@@ -70,10 +73,14 @@ export async function POST(req:Request) {
           ]);
         } finally {
           if (attemptTimeout) clearTimeout(attemptTimeout);
+          requestController.signal.removeEventListener("abort", abortAttempt);
         }
       }),
       new Promise<never>((_, reject) => {
-        requestTimeout = setTimeout(() => reject(new Error("The assistant took too long to respond. Please try again in a moment.")), 26000);
+        requestTimeout = setTimeout(() => {
+          requestController.abort();
+          reject(new Error("The assistant took too long to respond. Please try again in a moment."));
+        }, 26000);
       }),
     ]);
     const used=response.result.steps.flatMap(s=>s.toolCalls.map(c=>c.toolName));
