@@ -161,7 +161,7 @@ export default function App() {
     return (
       <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5 py-10">
         <div className="mb-7 text-center">
-          <h1 className="text-3xl font-bold tracking-tight"><span aria-hidden>☂️ </span>Para<span className="text-emerald-600">guas</span></h1>
+          <div className="flex items-center justify-center gap-3"><img src="/paraguas-mark.svg" alt="" aria-hidden="true" className="h-12 w-12" /><h1 className="text-3xl font-bold tracking-[-0.055em] text-slate-950">Para<span className="text-indigo-600">guas</span></h1></div>
           <p className="mt-2 text-sm text-slate-500">Your family&apos;s allowance and protection fund.</p>
         </div>
         <form onSubmit={registerMode?registerParent:signIn} className="app-card space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -199,7 +199,7 @@ export default function App() {
     <div className="app-shell mx-auto min-h-screen max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 pb-5">
         <div>
-          <h1 className="text-[1.7rem] font-bold tracking-[-0.055em] text-slate-950"><span aria-hidden>☂️ </span>Para<span className="text-emerald-600">guas</span></h1>
+          <div className="flex items-center gap-3"><img src="/paraguas-mark.svg" alt="" aria-hidden="true" className="h-11 w-11 shrink-0" /><div><h1 className="text-[1.7rem] font-bold tracking-[-0.055em] text-slate-950">Para<span className="text-indigo-600">guas</span></h1><p className="mt-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-teal-600">Plan · Protect · Grow</p></div></div>
           <p className="mt-1 text-sm text-slate-500">Family money, made clearer. AI helps review claims; parents stay in control.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
