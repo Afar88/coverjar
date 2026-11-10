@@ -7,15 +7,16 @@
 
 :root {
   color-scheme: light;
-  --ink: #14251f;
-  --muted: #687a73;
-  --line: #e4ece7;
-  --surface: rgba(255, 255, 255, 0.94);
-  --green: #087b58;
-  --green-dark: #075c43;
-  --mint: #e9f7f0;
-  --shadow-card: 0 12px 34px rgba(19, 48, 36, 0.055), 0 2px 7px rgba(19, 48, 36, 0.035);
-  background: #f5f8f6;
+  --ink: #172a27;
+  --muted: #71817c;
+  --line: #e7e9e3;
+  --surface: #ffffff;
+  --green: #176b55;
+  --green-dark: #104b3d;
+  --mint: #edf5ef;
+  --sand: #f7f6f1;
+  --shadow-card: 0 18px 45px rgba(27, 48, 41, 0.055), 0 2px 8px rgba(27, 48, 41, 0.035);
+  background: #f6f7f4;
 }
 
 * { box-sizing: border-box; }
@@ -29,9 +30,9 @@ html {
 body {
   min-height: 100%;
   background:
-    radial-gradient(ellipse at 8% -8%, rgba(16, 185, 129, 0.12), transparent 34rem),
-    radial-gradient(ellipse at 100% 12%, rgba(14, 165, 133, 0.055), transparent 30rem),
-    #f5f8f6;
+    radial-gradient(ellipse at 4% 0%, rgba(28, 105, 82, 0.075), transparent 32rem),
+    radial-gradient(ellipse at 100% 8%, rgba(190, 173, 126, 0.09), transparent 28rem),
+    #f6f7f4;
   color: var(--ink);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -195,4 +196,39 @@ input[type="file"]::file-selector-button {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+
+/* Paraguas refined visual system */
+.app-shell { max-width: 80rem; }
+.app-shell > header { position: relative; padding: .65rem 0 1.35rem; border-color: #e3e8e2; }
+.app-shell > header h1 { letter-spacing: -.065em; }
+.app-shell > header p { color: #73817b; }
+.app-shell > header img { filter: drop-shadow(0 5px 9px rgba(23, 79, 61, .12)); }
+.app-card { border-color: #e7eae4; border-radius: 1.35rem; background: rgba(255,255,255,.96); box-shadow: var(--shadow-card); backdrop-filter: blur(16px); }
+.app-card > div:first-child h2 { color: #1b332d; font-size: .96rem; letter-spacing: -.025em; }
+.app-button { border-radius: .8rem; min-height: 2.8rem; }
+.app-button[data-variant="primary"] { border-color: #155d49; background: linear-gradient(145deg, #1b7057, #14513f); box-shadow: 0 6px 15px rgba(21, 93, 73, .16); }
+.app-button[data-variant="primary"]:hover { background: linear-gradient(145deg, #155d49, #103f33); }
+.app-button[data-variant="secondary"] { border-color: #e1e7e0; background: #fff; color: #29463d; }
+.app-button[data-variant="secondary"]:hover { background: #f5f8f4; border-color: #cbd8ce; }
+.app-button[data-variant="ghost"] { color: #45645a; }
+.dashboard-menu__trigger { border-color: #e1e7e0; border-radius: .8rem; background: #fff; color: #29463d; box-shadow: 0 4px 12px rgba(25, 53, 42, .045); }
+.dashboard-menu__trigger:hover { background: #f4f8f3; border-color: #cbd8ce; }
+.dashboard-menu__panel { border-color: #e2e8e1; border-radius: 1.05rem; box-shadow: 0 22px 55px rgba(24, 49, 39, .15); }
+.dashboard-menu__link { color: #405c52; }
+.dashboard-menu__link.is-active { background: #edf5ef; color: #155d49; font-weight: 700; }
+.metric-card, .app-shell section[aria-label="Family financial overview"] > div { border-color: #e6eae3; border-radius: 1.2rem; background: rgba(255,255,255,.94); box-shadow: 0 8px 22px rgba(27,48,41,.035); transition: transform 160ms ease, box-shadow 160ms ease; }
+.metric-card:hover, .app-shell section[aria-label="Family financial overview"] > div:hover { transform: translateY(-2px); box-shadow: 0 13px 28px rgba(27,48,41,.065); }
+.app-shell input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), .app-shell select, .app-shell textarea { border-color: #dfe6df; background-color: #fff; color: #203b32; }
+.app-shell input:focus, .app-shell select:focus, .app-shell textarea:focus { border-color: #397d65; box-shadow: 0 0 0 4px rgba(38, 112, 83, .09); }
+.toast-message { border-color: #dce8df; border-radius: .95rem; }
+.ag-root-wrapper { border: 1px solid #e7eae4 !important; border-radius: 1rem !important; }
+.ag-header { background: #f4f6f1 !important; }
+.ag-header-cell-text { color: #49645a; font-weight: 650; }
+@media (max-width: 640px) {
+  .app-shell { padding-top: 1rem; }
+  .app-shell > header { align-items: flex-start; }
+  .app-shell > header > div:last-child { width: 100%; }
+  .app-shell > header > div:last-child > * { flex-shrink: 0; }
 }

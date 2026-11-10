@@ -80,11 +80,12 @@ export default function App() {
   useEffect(() => {
     let alive = true;
     Promise.all([
-      api<{ authenticated: boolean; session: { role: "parent" | "teen"; memberId: string; familyId: string } | null }>("/api/auth/session"),
+      api<{ authenticated: boolean; session: { role: "parent" | "teen"; memberId: string; familyId: string } | null; familyCode?: string | null }>("/api/auth/session"),
     ]).then(async ([auth]) => {
       if (!alive) return;
       if (auth.authenticated && auth.session) {
         setSession(auth.session);
+        if (auth.session.role === "parent") setIssuedFamilyCode(auth.familyCode || "");
         const next = await api<AppState>("/api/state");
         if (alive) setState(next);
       }
@@ -215,7 +216,7 @@ export default function App() {
           <Button variant="secondary" onClick={signOut} disabled={busy}>Log out</Button>
         </div>
       </header>
-      {issuedFamilyCode && session.role==="parent" && <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm">Your family code: <strong className="select-all">{issuedFamilyCode}</strong>. Share this code with your teens so they can sign in.</div>}
+      {session.role === "parent" && issuedFamilyCode && <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm"><div><p className="font-medium text-emerald-900">Your family code</p><p className="mt-1 font-mono text-lg font-bold tracking-wide text-emerald-950 select-all">{issuedFamilyCode}</p><p className="mt-1 text-emerald-800">Share this code with your teens so they can join your family.</p></div><button type="button" onClick={() => { void navigator.clipboard?.writeText(issuedFamilyCode).then(() => notify("Family code copied." )).catch(() => notify("Could not copy automatically. Select the code to copy it.", true)); }} className="rounded-lg border border-emerald-300 bg-white px-4 py-2 font-semibold text-emerald-800 hover:bg-emerald-100">Copy code</button></div>}
       {toast && <div className={`toast-message mb-4 rounded-xl px-4 py-3 text-sm ${toast.error ? "bg-rose-50 text-rose-800" : "bg-emerald-50 text-emerald-800"}`} role="status" aria-live="polite">{toast.msg}</div>}
       {session.role === "parent" ? <ParentView state={state} activeSection={activeSection} onDone={onDone} onError={onError} /> :
         current ? <TeenView key={current.id} teen={current} familyId={session.familyId} state={state} activeSection={activeSection} onDone={onDone} onError={onError} /> :

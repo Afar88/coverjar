@@ -267,6 +267,9 @@ export async function createFamilyAccount(parentName:string,passwordHash:string)
 export async function getFamilyByCode(code:string) {
   return (await queryRows<FamilyAccount>("SELECT id,code,parent_name,password_hash FROM families WHERE code=$1",[code.trim().toUpperCase()]))[0];
 }
+export async function getFamilyById(id:string) {
+  return (await queryRows<FamilyAccount>("SELECT id,code,parent_name,password_hash FROM families WHERE id=$1",[id]))[0];
+}
 export async function addTeenToFamily(familyId:string,name:string,pinHash:string) {
   const clean=name.trim().slice(0,80); if(!clean||pinHash.length<40)throw new Error("A valid teen name and PIN hash are required");
   const id=randomUUID();
