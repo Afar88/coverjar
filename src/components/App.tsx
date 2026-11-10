@@ -21,20 +21,22 @@ const RETURN_MESSAGES: Record<string, string> = {
 };
 
 const PARENT_NAV = [
-  { href: "#family", label: "Family overview" },
-  { href: "#review-claims", label: "Review claims" },
-  { href: "#claim-history", label: "Claim history" },
-  { href: "#family-activity", label: "Family activity" },
-  { href: "#family-rules", label: "Family rules" },
-  { href: "#family-assistant", label: "AI assistant" },
+  { id: "dashboard", label: "Dashboard" },
+  { id: "family", label: "Family overview" },
+  { id: "review-claims", label: "Review claims" },
+  { id: "claim-history", label: "Claim history" },
+  { id: "family-activity", label: "Family activity" },
+  { id: "family-rules", label: "Family rules" },
+  { id: "family-assistant", label: "AI assistant" },
 ];
 
 const TEEN_NAV = [
-  { href: "#teen-money", label: "My money" },
-  { href: "#file-claim", label: "File a claim" },
-  { href: "#my-claims", label: "My claims" },
-  { href: "#teen-activity", label: "My activity" },
-  { href: "#money-coach", label: "Money coach" },
+  { id: "dashboard", label: "Dashboard" },
+  { id: "teen-money", label: "My money" },
+  { id: "file-claim", label: "File a claim" },
+  { id: "my-claims", label: "My claims" },
+  { id: "teen-activity", label: "My activity" },
+  { id: "money-coach", label: "Money coach" },
 ];
 
 export default function App() {
@@ -51,6 +53,7 @@ export default function App() {
   const [registerMode,setRegisterMode]=useState(false);
   const [issuedFamilyCode,setIssuedFamilyCode]=useState("");
   const [busy, setBusy] = useState(false);
+  const [activeSection, setActiveSection] = useState("dashboard");
   const [toast, setToast] = useState<{ msg: string; error?: boolean } | null>(() => {
     for (const [k, msg] of Object.entries(RETURN_MESSAGES)) {
       const [key, val] = k.split("=");
@@ -200,21 +203,28 @@ export default function App() {
           <p className="mt-1 text-sm text-slate-500">Family money, made clearer. AI helps review claims; parents stay in control.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <DashboardMenu links={session.role === "parent" ? PARENT_NAV : TEEN_NAV} />
+          <DashboardMenu
+            links={session.role === "parent" ? PARENT_NAV : TEEN_NAV}
+            active={activeSection}
+            onNavigate={setActiveSection}
+          />
+          {activeSection !== "dashboard" && (
+            <Button variant="secondary" onClick={() => setActiveSection("dashboard")}>← Dashboard</Button>
+          )}
           <Badge>{session.role === "parent" ? "Parent account" : current?.name}</Badge>
           <Button variant="secondary" onClick={signOut} disabled={busy}>Log out</Button>
         </div>
       </header>
       {issuedFamilyCode && session.role==="parent" && <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm">Your family code: <strong className="select-all">{issuedFamilyCode}</strong>. Share this code with your teens so they can sign in.</div>}
       {toast && <div className={`toast-message mb-4 rounded-xl px-4 py-3 text-sm ${toast.error ? "bg-rose-50 text-rose-800" : "bg-emerald-50 text-emerald-800"}`} role="status" aria-live="polite">{toast.msg}</div>}
-      {session.role === "parent" ? <ParentView state={state} onDone={onDone} onError={onError} /> :
-        current ? <TeenView key={current.id} teen={current} familyId={session.familyId} state={state} onDone={onDone} onError={onError} /> :
+      {session.role === "parent" ? <ParentView state={state} activeSection={activeSection} onDone={onDone} onError={onError} /> :
+        current ? <TeenView key={current.id} teen={current} familyId={session.familyId} state={state} activeSection={activeSection} onDone={onDone} onError={onError} /> :
         <p className="text-sm text-rose-700">Teen profile unavailable. Sign out and sign in again.</p>}
     </div>
   );
 }
 
-function DashboardMenu({ links }: { links: { href: string; label: string }[] }) {
+function DashboardMenu({ links, active, onNavigate }: { links: { id: string; label: string }[]; active: string; onNavigate: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
 
@@ -250,9 +260,15 @@ function DashboardMenu({ links }: { links: { href: string; label: string }[] }) 
       {open && (
         <nav id="dashboard-navigation" className="dashboard-menu__panel" aria-label="Dashboard navigation">
           {links.map((link) => (
-            <a key={link.href} className="dashboard-menu__link" href={link.href} onClick={() => setOpen(false)}>
+            <button
+              key={link.id}
+              type="button"
+              className={`dashboard-menu__link ${active === link.id ? "is-active" : ""}`}
+              aria-current={active === link.id ? "page" : undefined}
+              onClick={() => { onNavigate(link.id); setOpen(false); }}
+            >
               {link.label}
-            </a>
+            </button>
           ))}
         </nav>
       )}
@@ -262,7 +278,7 @@ function DashboardMenu({ links }: { links: { href: string; label: string }[] }) 
 
 type Handlers = { onDone: (m: string) => void; onError: (m: string) => void };
 
-function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) {
+function ParentView({ state, activeSection, onDone, onError }: { state: AppState; activeSection: string } & Handlers) {
   const [teenName,setTeenName]=useState("");
   const [teenPin,setTeenPin]=useState("");
   const [addingTeen,setAddingTeen]=useState(false);
@@ -286,12 +302,12 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
   }
   return (
     <div className="space-y-5">
-      <form onSubmit={addTeen} className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      {activeSection === "dashboard" && <form onSubmit={addTeen} className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="min-w-[150px] flex-1"><label className="text-xs font-medium text-slate-600">Add teen name<input className={inputCls+" mt-1"} value={teenName} onChange={e=>setTeenName(e.target.value)} maxLength={80} required placeholder="Teen name" /></label></div>
         <div className="w-36"><label className="text-xs font-medium text-slate-600">Create PIN<input className={inputCls+" mt-1"} value={teenPin} onChange={e=>setTeenPin(e.target.value)} inputMode="numeric" type="password" minLength={4} maxLength={12} pattern="[0-9]{4,12}" required placeholder="4–12 digits" /></label></div>
         <Button type="submit" disabled={addingTeen}>{addingTeen?"Adding…":"Add teen"}</Button>
-      </form>
-      <section aria-label="Family financial overview" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      </form>}
+      {activeSection === "dashboard" && <section aria-label="Family financial overview" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="metric-card rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs font-medium text-slate-500">Teens</p>
           <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">{teens.length}</p>
@@ -308,15 +324,15 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
           <p className="text-xs font-medium text-amber-800">Claims to review</p>
           <p className="mt-1 text-2xl font-semibold tracking-tight text-amber-950">{pending.length}</p>
         </div>
-      </section>
+      </section>}
       <div className="grid items-start gap-5 lg:grid-cols-12 lg:gap-6">
       <div className="space-y-5 lg:col-span-8">
-        <div id="family" className="grid scroll-mt-24 gap-4 sm:grid-cols-2">
+        {activeSection === "family" && <div id="family" className="grid gap-4 sm:grid-cols-2">
           {teens.map((t) => (
             <TeenFundingCard key={t.id} teen={t} state={state} onDone={onDone} onError={onError} />
           ))}
-        </div>
-        <Card title={`Claims waiting for you (${pending.length})`}><div id="review-claims" className="scroll-mt-24">
+        </div>}
+        {activeSection === "review-claims" && <Card title={`Claims waiting for you (${pending.length})`}><div id="review-claims">
           {pending.length === 0 ? (
             <p className="text-sm text-slate-500">No claims to review. Switch to a teen to file one.</p>
           ) : (
@@ -326,9 +342,8 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
               ))}
             </div>
           )}
-        </div></Card>
-        {decided.length > 0 && (
-          <Card title={`Claim history (${decided.length})`}><div id="claim-history" className="scroll-mt-24">
+        </div></Card>}
+        {activeSection === "claim-history" && <Card title={`Claim history (${decided.length})`}><div id="claim-history">
             <ClaimsGrid claims={decided} names={names} />
             {decided.some((claim) => claim.status === "payout_pending") && (
               <div className="mt-4 space-y-2">
@@ -344,18 +359,17 @@ function ParentView({ state, onDone, onError }: { state: AppState } & Handlers) 
                 ))}
               </div>
             )}
-          </div></Card>
-        )}
-        <div id="family-activity" className="scroll-mt-24"><Ledger state={state} /></div>
+          </div></Card>}
+        {activeSection === "family-activity" && <Ledger state={state} />}
       </div>
       <div className="space-y-5 lg:col-span-4">
-        <div id="family-rules" className="scroll-mt-24"><RulesCard state={state} onDone={onDone} onError={onError} /></div>
-        <div id="family-assistant" className="scroll-mt-24"><Chat
+        {activeSection === "family-rules" && <RulesCard state={state} onDone={onDone} onError={onError} />}
+        {activeSection === "family-assistant" && <Chat
           persona="parent"
           title="Family assistant"
           intro="I can look up PayPal transactions, subscriptions and invoices, summarise claims, and adjust the umbrella rules for you."
           suggestions={["How are the umbrella funds doing?", "Show recent PayPal transactions", "Raise the umbrella share to 25%"]}
-        /></div>
+        />}
       </div>
       </div>
     </div>
@@ -643,7 +657,7 @@ function Ledger({ state, memberId }: { state: AppState; memberId?: string }) {
   );
 }
 
-function TeenView({ teen, familyId, state, onDone, onError }: { teen: Member; familyId:string; state: AppState } & Handlers) {
+function TeenView({ teen, familyId, state, activeSection, onDone, onError }: { teen: Member; familyId:string; state: AppState; activeSection: string } & Handlers) {
   const b = teen.balances!;
   const claims = state.claims.filter((c) => c.member_id === teen.id);
   const [busy, setBusy] = useState(false);
@@ -698,14 +712,14 @@ function TeenView({ teen, familyId, state, onDone, onError }: { teen: Member; fa
 
   return (
     <div className="space-y-5">
-      <section aria-label="Your money overview" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {activeSection === "dashboard" && <section aria-label="Your money overview" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><p className="text-xs font-medium text-slate-500">Spending money</p><p className="mt-1 text-xl font-semibold tracking-tight text-slate-950">{fmt(b.spend)}</p></div>
         <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 shadow-sm"><p className="text-xs font-medium text-emerald-700">Umbrella fund</p><p className="mt-1 text-xl font-semibold tracking-tight text-emerald-900">{fmt(b.jar)}</p></div>
         <div className="col-span-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:col-span-1"><p className="text-xs font-medium text-slate-500">My claims</p><p className="mt-1 text-xl font-semibold tracking-tight text-slate-950">{claims.length}</p></div>
-      </section>
+      </section>}
       <div className="grid items-start gap-5 lg:grid-cols-12 lg:gap-6">
       <div className="space-y-5 lg:col-span-8">
-        <div id="teen-money" className="grid scroll-mt-24 gap-4 sm:grid-cols-2">
+        {activeSection === "teen-money" && <div id="teen-money" className="grid gap-4 sm:grid-cols-2">
           <div className="metric-card rounded-2xl bg-slate-900 p-5 text-white">
             <div className="text-sm text-slate-300">Spending money</div>
             <div className="text-3xl font-bold">{fmt(b.spend)}</div>
@@ -731,9 +745,9 @@ function TeenView({ teen, familyId, state, onDone, onError }: { teen: Member; fa
               <p className="mt-2 text-xs text-slate-600">{teen.streak.eligible ? "You've unlocked a parent-funded bonus match. Ask your parent to review it." : "Keep your weekly allowance savings going to unlock a bonus match."}</p>
             </div>
           )}
-        </div>
+        </div>}
 
-        <div id="file-claim" className="scroll-mt-24"><Card title="Something broke? File a claim">
+        {activeSection === "file-claim" && <Card title="Something broke? File a claim">
           <form onSubmit={fileClaim} className="space-y-3">
             <input name="title" className={inputCls} placeholder="e.g. Cracked phone screen" required />
             <textarea name="description" className={`${inputCls} h-24`} placeholder="What happened? Add details so the AI review can help your parent." required />
@@ -743,10 +757,9 @@ function TeenView({ teen, familyId, state, onDone, onError }: { teen: Member; fa
             </div>
             <Button type="submit" disabled={busy}>{busy ? "Gemini is reviewing…" : "Send claim"}</Button>
           </form>
-        </Card></div>
+        </Card>}
 
-        {claims.length > 0 && (
-          <div id="my-claims" className="scroll-mt-24"><Card title="My claims">
+        {activeSection === "my-claims" && <Card title="My claims">
             <div className="space-y-3">
               {claims.map((c) => (
                 <div key={c.id} className="rounded-xl border border-slate-200 p-3 text-sm">
@@ -766,18 +779,17 @@ function TeenView({ teen, familyId, state, onDone, onError }: { teen: Member; fa
                 </div>
               ))}
             </div>
-          </Card></div>
-        )}
-        <div id="teen-activity" className="scroll-mt-24"><Ledger state={state} memberId={teen.id} /></div>
+          </Card>}
+        {activeSection === "teen-activity" && <Ledger state={state} memberId={teen.id} />}
       </div>
-      <div id="money-coach" className="scroll-mt-24">
-        <Chat
+      <div className="lg:col-span-4">
+      {activeSection === "money-coach" && <Chat
           persona="teen"
           memberId={teen.id}
           title="Jarvis, your money coach"
           intro={`Hey ${teen.name}! Ask me about your umbrella fund, what's covered, or how to save for something.`}
           suggestions={["How much is in my umbrella fund?", "Is a cracked screen covered?", "How long to save $60?"]}
-        />
+        />}
       </div>
       </div>
     </div>
