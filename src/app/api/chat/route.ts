@@ -46,16 +46,34 @@ export async function POST(req:Request) {
       paypal_subscription_status:tool({description:"Look up the status and next billing date of a PayPal subscription using its subscription ID",inputSchema:z.object({subscription_id:z.string().min(5).max(128)}),execute:async({subscription_id})=>{try{return await getPaypalSubscription(subscription_id)}catch{return {unavailable:true,message:"PayPal subscription lookup is temporarily unavailable. Please check the subscription in PayPal and try again."}}}}),
     };
   }
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  const controller = new AbortController();
+  let requestTimeout: ReturnType<typeof setTimeout> | undefined;
   try {
     const response = await Promise.race([
-      withGemini(model => generateText({
-        model, system, messages: history, tools,
-        stopWhen: stepCountIs(role === "parent" ? 2 : 4), maxRetries: 0, abortSignal: controller.signal,
-      })),
+      withGemini(async (model, modelId) => {
+        const attemptController = new AbortController();
+        let attemptTimeout: ReturnType<typeof setTimeout> | undefined;
+        try {
+          return await Promise.race([
+            generateText({
+              model, system, messages: history, tools,
+              stopWhen: stepCountIs(role === "parent" ? 2 : 3),
+              maxOutputTokens: 512,
+              maxRetries: 0,
+              abortSignal: attemptController.signal,
+            }),
+            new Promise<never>((_, reject) => {
+              attemptTimeout = setTimeout(() => {
+                attemptController.abort();
+                reject(new Error(`Gemini model ${modelId} exceeded the 8-second response window`));
+              }, 8000);
+            }),
+          ]);
+        } finally {
+          if (attemptTimeout) clearTimeout(attemptTimeout);
+        }
+      }),
       new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => { controller.abort(); reject(new Error("The assistant took too long to respond. Please try again in a moment.")); }, 22000);
+        requestTimeout = setTimeout(() => reject(new Error("The assistant took too long to respond. Please try again in a moment.")), 26000);
       }),
     ]);
     const used=response.result.steps.flatMap(s=>s.toolCalls.map(c=>c.toolName));
@@ -67,6 +85,6 @@ export async function POST(req:Request) {
     console.error("Paraguas chat request failed:", e);
     return Response.json({error:"The assistant is temporarily unavailable. Please try again."},{status:502,headers:{"Cache-Control":"no-store"}});
   } finally {
-    if (timeout) clearTimeout(timeout);
+    if (requestTimeout) clearTimeout(requestTimeout);
   }
 }
