@@ -64,8 +64,9 @@ export async function POST(req:Request) {
           return await Promise.race([
             generateText({
               model, system, messages: history, tools,
-              stopWhen: stepCountIs(role === "parent" ? 2 : 3),
-              maxOutputTokens: 512,
+              // Leave an extra step after tool execution so the model can explain the results.
+              stopWhen: stepCountIs(role === "parent" ? 4 : 5),
+              maxOutputTokens: 768,
               maxRetries: 0,
               abortSignal: attemptController.signal,
             }),
@@ -90,7 +91,7 @@ export async function POST(req:Request) {
     ]);
     const used=response.result.steps.flatMap(s=>s.toolCalls.map(c=>c.toolName));
     if (!response.result.text?.trim()) {
-      return Response.json({ error: "The assistant returned an empty reply. Please try again." }, { status: 502 });
+      return Response.json({ text: "I checked your request, but couldn’t prepare a complete reply just now. Please try asking again in a moment.", tools: [...new Set(used)] }, { headers: { "Cache-Control": "no-store" } });
     }
     return Response.json({text:response.result.text,tools:[...new Set(used)]}, { headers: { "Cache-Control": "no-store" } });
   } catch(e) {
