@@ -4,9 +4,9 @@ import { z } from "zod";
 import type { Claim, Rules } from "./db";
 
 export const geminiConfigured = Boolean(process.env.GEMINI_API_KEY);
-export const geminiModelId = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+export const geminiModelId = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
 
-const fallbackModelIds = [geminiModelId, ...(process.env.GEMINI_FALLBACK_MODELS || "gemini-3.6-flash,gemini-3.5-flash-lite").split(",")]
+const fallbackModelIds = [geminiModelId, ...(process.env.GEMINI_FALLBACK_MODELS || "gemini-3.6-flash,gemini-3.8-flash").split(",")]
   .map((m) => m.trim())
   .filter((m, i, all) => m && all.indexOf(m) === i);
 
