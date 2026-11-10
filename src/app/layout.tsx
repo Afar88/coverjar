@@ -7,8 +7,8 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Paraguas — allowance with an umbrella fund",
-  description: "Teens build a family-funded umbrella fund from their allowance. Gemini reviews claims, parents approve, PayPal pays.",
+  title: "Paraguas — Plan · Protect · Grow",
+  description: "A smarter family finance platform to plan allowances, protect savings, and grow healthy money habits.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
