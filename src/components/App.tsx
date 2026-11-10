@@ -22,6 +22,7 @@ const RETURN_MESSAGES: Record<string, string> = {
 
 const PARENT_NAV = [
   { id: "dashboard", label: "Dashboard" },
+  { id: "family-code", label: "Family code" },
   { id: "family", label: "Family overview" },
   { id: "review-claims", label: "Review claims" },
   { id: "claim-history", label: "Claim history" },
@@ -63,6 +64,10 @@ export default function App() {
   });
 
   const refresh = useCallback(async () => setState(await api<AppState>("/api/state")), []);
+  const refreshFamilyCode = useCallback(async () => {
+    const auth = await api<{ authenticated: boolean; session: { role: "parent" | "teen" } | null; familyCode?: string | null }>("/api/auth/session");
+    if (auth.authenticated && auth.session?.role === "parent") setIssuedFamilyCode(auth.familyCode || "");
+  }, []);
   const notify = useCallback((msg: string, error = false) => {
     setToast({ msg, error });
     setTimeout(() => setToast(null), 6000);
@@ -216,9 +221,8 @@ export default function App() {
           <Button variant="secondary" onClick={signOut} disabled={busy}>Log out</Button>
         </div>
       </header>
-      {session.role === "parent" && issuedFamilyCode && <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm"><div><p className="font-medium text-emerald-900">Your family code</p><p className="mt-1 font-mono text-lg font-bold tracking-wide text-emerald-950 select-all">{issuedFamilyCode}</p><p className="mt-1 text-emerald-800">Share this code with your teens so they can join your family.</p></div><button type="button" onClick={() => { void navigator.clipboard?.writeText(issuedFamilyCode).then(() => notify("Family code copied." )).catch(() => notify("Could not copy automatically. Select the code to copy it.", true)); }} className="rounded-lg border border-emerald-300 bg-white px-4 py-2 font-semibold text-emerald-800 hover:bg-emerald-100">Copy code</button></div>}
       {toast && <div className={`toast-message mb-4 rounded-xl px-4 py-3 text-sm ${toast.error ? "bg-rose-50 text-rose-800" : "bg-emerald-50 text-emerald-800"}`} role="status" aria-live="polite">{toast.msg}</div>}
-      {session.role === "parent" ? <ParentView state={state} activeSection={activeSection} onDone={onDone} onError={onError} /> :
+      {session.role === "parent" ? <ParentView state={state} activeSection={activeSection} familyCode={issuedFamilyCode} onRefreshFamilyCode={refreshFamilyCode} onDone={onDone} onError={onError} /> :
         current ? <TeenView key={current.id} teen={current} familyId={session.familyId} state={state} activeSection={activeSection} onDone={onDone} onError={onError} /> :
         <p className="text-sm text-rose-700">Teen profile unavailable. Sign out and sign in again.</p>}
     </div>
@@ -279,7 +283,10 @@ function DashboardMenu({ links, active, onNavigate }: { links: { id: string; lab
 
 type Handlers = { onDone: (m: string) => void; onError: (m: string) => void };
 
-function ParentView({ state, activeSection, onDone, onError }: { state: AppState; activeSection: string } & Handlers) {
+function ParentView({ state, activeSection, familyCode, onRefreshFamilyCode, onDone, onError }: { state: AppState; activeSection: string; familyCode: string; onRefreshFamilyCode: () => Promise<void> } & Handlers) {
+  useEffect(() => {
+    if (activeSection === "family-code" && !familyCode) void onRefreshFamilyCode().catch(() => onError("Could not load your family code. Try again."));
+  }, [activeSection, familyCode, onRefreshFamilyCode, onError]);
   const [teenName,setTeenName]=useState("");
   const [teenPin,setTeenPin]=useState("");
   const [addingTeen,setAddingTeen]=useState(false);
@@ -303,6 +310,14 @@ function ParentView({ state, activeSection, onDone, onError }: { state: AppState
   }
   return (
     <div className="space-y-5">
+      {activeSection === "family-code" && <Card title="Your family code">
+        <p className="text-sm text-slate-600">Share this code with your teens so they can join your family. This code belongs to your parent account.</p>
+        {familyCode ? <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <p className="select-all font-mono text-xl font-bold tracking-wider text-emerald-950">{familyCode}</p>
+          <Button onClick={() => { void navigator.clipboard?.writeText(familyCode).then(() => onDone("Family code copied.")).catch(() => onError("Could not copy automatically. Select the code to copy it.")); }}>Copy code</Button>
+        </div> : <p className="mt-4 text-sm text-amber-700">Your family code is not loaded yet. Use Refresh to retrieve it.</p>}
+        <div className="mt-3"><Button variant="secondary" onClick={() => { void onRefreshFamilyCode().catch(() => onError("Could not load your family code. Try again.")); }}>Refresh family code</Button></div>
+      </Card>}
       {activeSection === "dashboard" && <form onSubmit={addTeen} className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="min-w-[150px] flex-1"><label className="text-xs font-medium text-slate-600">Add teen name<input className={inputCls+" mt-1"} value={teenName} onChange={e=>setTeenName(e.target.value)} maxLength={80} required placeholder="Teen name" /></label></div>
         <div className="w-36"><label className="text-xs font-medium text-slate-600">Create PIN<input className={inputCls+" mt-1"} value={teenPin} onChange={e=>setTeenPin(e.target.value)} inputMode="numeric" type="password" minLength={4} maxLength={12} pattern="[0-9]{4,12}" required placeholder="4–12 digits" /></label></div>
