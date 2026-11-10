@@ -1,6 +1,6 @@
 import { generateText, stepCountIs, tool, type ModelMessage, type Tool } from "ai";
 import { z } from "zod";
-import { balances, consumeRateLimit, familySnapshot, getClaims, getLedger, getMember, getRules } from "@/lib/db";
+import { balances, consumeRateLimit, familySnapshot, getClaims, getLedger, getMember, getRules, getTeens } from "@/lib/db";
 import { geminiConfigured, withGemini } from "@/lib/gemini";
 import { getPaypalSubscription, listPaypalTransactions } from "@/lib/paypal";
 import { requireRole } from "@/lib/auth";
@@ -38,35 +38,67 @@ export async function POST(req:Request) {
       family_rules:tool({description:"What the umbrella fund covers and its limits",inputSchema:z.object({}),execute:async()=>getRules(undefined,session.familyId)}),
     };
   } else {
-    system="You are Paraguas's assistant for the parent. You help run the family umbrella fund and the PayPal side of it. Amounts in the app database are in cents; PayPal amounts are in dollars. Be concise. You may explain suggested family-rule changes, but you cannot change rules or financial settings. Direct the parent to the Family rules screen to review and save changes themselves. You can use read-only PayPal tools to look up recent transactions and subscription status. Never claim to create or send an invoice.";
+    system="You are Paraguas's assistant for the parent. You help run the family umbrella fund and the PayPal side of it. Amounts in the app database are in cents; PayPal amounts are in dollars. Be concise. IMPORTANT: protection-jar balances are stored in Paraguas's family ledger, not retrieved from PayPal. Always use the protection_jar_balances or family_snapshot tool for jar balances. Never use PayPal transaction history as a substitute for a current jar balance, and never claim the balance is unavailable because PayPal is disconnected when the ledger tool succeeds. Explain the jar percentage separately from the actual balance. You may explain suggested family-rule changes, but you cannot change rules or financial settings. Direct the parent to the Family rules screen to review and save changes themselves. Use PayPal tools only for PayPal transactions and subscription status. Never claim to create or send an invoice.";
     tools={
       family_snapshot:tool({description:"Teens, their balances (cents) and the family rules",inputSchema:z.object({}),execute:async()=>familySnapshot(session.familyId)}),
+      protection_jar_balances:tool({description:"Get the exact current protection-jar balance for every teen in this family from the Paraguas ledger. This is the source of truth for jar balances; amounts are integer cents. Do not call PayPal for this.",inputSchema:z.object({}),execute:async()=>{const teens=await getTeens(session.familyId);return Promise.all(teens.map(async teen=>{const balance=await balances(teen.id,undefined,session.familyId);return {memberId:teen.id,name:teen.name,protectionJarCents:balance.jar,spendingCents:balance.spend}}))}}),
       list_claims:tool({description:"All claims with status and AI assessment",inputSchema:z.object({}),execute:async()=>(await getClaims(undefined,session.familyId)).map(c=>({...c,ai:c.ai?JSON.parse(c.ai):null}))}),
       paypal_recent_transactions:tool({description:"List the most recent PayPal transactions for the connected merchant account",inputSchema:z.object({days:z.number().int().min(1).max(90).default(7)}),execute:async({days})=>{try{return await listPaypalTransactions(days)}catch{return {unavailable:true,message:"PayPal transaction lookup is temporarily unavailable. You can still ask me about family balances and claims."}}}}),
       paypal_subscription_status:tool({description:"Look up the status and next billing date of a PayPal subscription using its subscription ID",inputSchema:z.object({subscription_id:z.string().min(5).max(128)}),execute:async({subscription_id})=>{try{return await getPaypalSubscription(subscription_id)}catch{return {unavailable:true,message:"PayPal subscription lookup is temporarily unavailable. Please check the subscription in PayPal and try again."}}}}),
     };
   }
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  const controller = new AbortController();
+  let requestTimeout: ReturnType<typeof setTimeout> | undefined;
+  const requestController = new AbortController();
   try {
     const response = await Promise.race([
-      withGemini(model => generateText({
-        model, system, messages: history, tools,
-        stopWhen: stepCountIs(role === "parent" ? 2 : 4), maxRetries: 0, abortSignal: controller.signal,
-      })),
+      withGemini(async (model, modelId) => {
+        // The overall deadline may have fired while the previous model was failing.
+        // Do not start another provider request after the response has already timed out.
+        if (requestController.signal.aborted) {
+          throw new Error("The chat request deadline has expired");
+        }
+        const attemptController = new AbortController();
+        const abortAttempt = () => attemptController.abort();
+        requestController.signal.addEventListener("abort", abortAttempt, { once: true });
+        let attemptTimeout: ReturnType<typeof setTimeout> | undefined;
+        try {
+          return await Promise.race([
+            generateText({
+              model, system, messages: history, tools,
+              // Leave an extra step after tool execution so the model can explain the results.
+              stopWhen: stepCountIs(role === "parent" ? 4 : 5),
+              maxOutputTokens: 768,
+              maxRetries: 0,
+              abortSignal: attemptController.signal,
+            }),
+            new Promise<never>((_, reject) => {
+              attemptTimeout = setTimeout(() => {
+                attemptController.abort();
+                reject(new Error(`Gemini model ${modelId} exceeded the 8-second response window`));
+              }, 8000);
+            }),
+          ]);
+        } finally {
+          if (attemptTimeout) clearTimeout(attemptTimeout);
+          requestController.signal.removeEventListener("abort", abortAttempt);
+        }
+      }),
       new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => { controller.abort(); reject(new Error("The assistant took too long to respond. Please try again in a moment.")); }, 22000);
+        requestTimeout = setTimeout(() => {
+          requestController.abort();
+          reject(new Error("The assistant took too long to respond. Please try again in a moment."));
+        }, 26000);
       }),
     ]);
     const used=response.result.steps.flatMap(s=>s.toolCalls.map(c=>c.toolName));
     if (!response.result.text?.trim()) {
-      return Response.json({ error: "The assistant returned an empty reply. Please try again." }, { status: 502 });
+      return Response.json({ text: "I checked your request, but couldn’t prepare a complete reply just now. Please try asking again in a moment.", tools: [...new Set(used)] }, { headers: { "Cache-Control": "no-store" } });
     }
     return Response.json({text:response.result.text,tools:[...new Set(used)]}, { headers: { "Cache-Control": "no-store" } });
   } catch(e) {
     console.error("Paraguas chat request failed:", e);
     return Response.json({error:"The assistant is temporarily unavailable. Please try again."},{status:502,headers:{"Cache-Control":"no-store"}});
   } finally {
-    if (timeout) clearTimeout(timeout);
+    if (requestTimeout) clearTimeout(requestTimeout);
   }
 }
