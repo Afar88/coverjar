@@ -51,6 +51,11 @@ export async function POST(req:Request) {
   try {
     const response = await Promise.race([
       withGemini(async (model, modelId) => {
+        // The overall deadline may have fired while the previous model was failing.
+        // Do not start another provider request after the response has already timed out.
+        if (requestController.signal.aborted) {
+          throw new Error("The chat request deadline has expired");
+        }
         const attemptController = new AbortController();
         const abortAttempt = () => attemptController.abort();
         requestController.signal.addEventListener("abort", abortAttempt, { once: true });
