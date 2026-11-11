@@ -40,6 +40,7 @@ Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 - **Vercel Blob (Private)** — claim evidence stored privately and streamed only through authenticated routes
 - **Google Gemini** via `@ai-sdk/google` and the AI SDK — multimodal claim review and role-aware chat
 - **PayPal REST APIs** — Orders, Subscriptions, Payouts, transaction reporting, and webhook signature verification
+- **AG Grid** (sponsor, `ag-grid-react`) — the parent's sortable, filterable Claims grid and the family Ledger grid
 - **Biome** — linting; **pg-mem** — PostgreSQL-compatible integration test adapter
 
 ## Run locally
